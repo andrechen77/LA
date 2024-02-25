@@ -1,5 +1,8 @@
 .bin
 bin
+obj
 tests
 prog.IR
 a.out
+parse_tree.dot
+parse_tree.svg

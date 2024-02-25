@@ -1,7 +1,7 @@
 CPP_FILES			:= $(wildcard src/*.cpp)
 OBJ_FILES			:= $(addprefix obj/,$(notdir $(CPP_FILES:.cpp=.o)))
 CC_FLAGS			:= --std=c++17 -I./src -I../lib/PEGTL/include -I../lib -g3 -DDEBUG -pedantic -pedantic-errors -Werror=pedantic
-LD_FLAGS			:= 
+LD_FLAGS			:=
 CC						:= g++
 PL_CLASS  		:= LA
 DST_PL_CLASS 	:= IR
@@ -9,6 +9,10 @@ EXT_CLASS 		:= a
 COMPILER			:= bin/$(PL_CLASS)
 OPT_LEVEL			:=
 CC_CLASS			:= $(PL_CLASS)c
+
+parse_test: all
+	./bin/LA -p my_tests/parse_test.LA
+	dot -T svg -o parse_tree.svg parse_tree.dot
 
 all: dirs $(COMPILER)
 
