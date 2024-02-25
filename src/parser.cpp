@@ -397,6 +397,7 @@ namespace La::parser {
 		Vec<Uptr<ParseNode>> children;
 		pegtl::internal::inputerator begin;
 		pegtl::internal::inputerator end;
+		Opt<pegtl::position> position;
 		const std::type_info *rule; // which rule this node matched on
 		std::string_view type;// only used for displaying parse tree
 
@@ -418,6 +419,7 @@ namespace La::parser {
 		template<typename Rule, typename ParseInput, typename... States>
 		void success(const ParseInput &in, States &&...) {
 			this->end = in.inputerator();
+			this->position = in.position();
 			this->rule = &typeid(Rule);
 			this->type = pegtl::demangle<Rule>();
 			this->type.remove_prefix(this->type.find_last_of(':') + 1);
