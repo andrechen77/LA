@@ -750,6 +750,7 @@ namespace La::parser {
 			for (const Uptr<ParseNode> &child : n.children) {
 				program->add_la_function(make_la_function(*child));
 			}
+			link_std(*program);
 			return program;
 		}
 	}

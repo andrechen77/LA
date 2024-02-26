@@ -234,4 +234,21 @@ namespace La::program {
 		this->scope.resolve_item(la_function->get_name(), la_function.get());
 		this->la_functions.push_back(mv(la_function));
 	}
+	void Program::add_external_function(Uptr<ExternalFunction> external_function) {
+		this->scope.resolve_item(external_function->get_name(), external_function.get());
+		this->external_functions.push_back(mv(external_function));
+	}
+
+	void link_std(Program &program) {
+		// includes all the information necessary to generate external-linkage
+		// ExternalFunctions; namely the name of the function and the number
+		// of parameters
+		static const Vec<Pair<std::string, int>> std_functions_info = {
+			{ "input", 0 },
+			{ "print", 1 }
+		};
+		for (const auto &[name, num_parameters] : std_functions_info) {
+			program.add_external_function(mkuptr<ExternalFunction>(name, num_parameters));
+		}
+	}
 }

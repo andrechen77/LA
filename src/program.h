@@ -449,6 +449,11 @@ namespace La::program {
 	struct ExternalFunction : Nameable {
 		std::string name;
 		int num_parameters;
+		// TODO consider adding richer information about the function's signature
+
+		ExternalFunction(std::string name, int num_parameters) :
+			name { mv(name) }, num_parameters { num_parameters }
+		{}
 
 		const std::string &get_name() const override { return this->name; }
 	};
@@ -460,5 +465,9 @@ namespace La::program {
 
 		std::string to_string() const;
 		void add_la_function(Uptr<LaFunction> la_function);
+		void add_external_function(Uptr<ExternalFunction> external_function);
 	};
+
+	// adds the standard library functions to the program's scope
+	void link_std(Program &program);
 }
