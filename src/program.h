@@ -5,9 +5,12 @@
 #include <string>
 #include <string_view>
 #include <iostream>
+#include <tao/pegtl.hpp>
 
 namespace La::program {
 	using namespace std_alias;
+	namespace pegtl = TAO_PEGTL_NAMESPACE;
+	using SrcPos = pegtl::position;
 
 	struct Type {
 		struct VoidType {};
@@ -23,9 +26,9 @@ namespace La::program {
 	template<typename Item> class Scope;
 	struct Nameable;
 
-	// interface
+	// abstract class
 	struct Expr {
-		int line_number;
+		Opt<SrcPos> src_pos;
 
 		virtual void bind_to_scope(Scope<Nameable> &agg_scope) = 0;
 		virtual std::string to_string() const = 0;

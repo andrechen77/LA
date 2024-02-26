@@ -536,10 +536,12 @@ namespace La::parser {
 				exit(1);
 			}
 
-			return mkuptr<IndexingExpr>(
+			auto expr = mkuptr<IndexingExpr>(
 				mv(target),
 				mv(indices)
 			);
+			expr->src_pos = n.position;
+			return expr;
 		}
 
 		Vec<Uptr<Expr>> make_call_args(const ParseNode &n) {
@@ -553,10 +555,12 @@ namespace La::parser {
 
 		Uptr<FunctionCall> make_function_call(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::CallingExpressionRule));
-			return mkuptr<FunctionCall>(
+			auto function = mkuptr<FunctionCall>(
 				make_name_ref(n[0]),
 				make_call_args(n[1])
 			);
+			function->src_pos = n.position;
+			return function;
 		}
 
 		Uptr<InstructionDeclaration> convert_instruction_declaration_rule(const ParseNode &n) {
