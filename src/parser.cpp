@@ -473,9 +473,9 @@ namespace La::parser {
 
 		// TODO
 
-		std::string_view extract_name(const ParseNode &n) {
+		std::string extract_name(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::NameRule));
-			return n.string_view();
+			return std::string(n.string_view());
 		}
 
 		Type make_type(const ParseNode &n) {
@@ -499,9 +499,22 @@ namespace La::parser {
 		Uptr<LaFunction> make_la_function(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::FunctionDefinitionRule));
 
-			Type return_type = make_type(n[0]);
-			std::string_view name = extract_name(n[1]);
-			Uptr<LaFunction> function = mkuptr<LaFunction>(std::string(name), return_type);
+			Uptr<LaFunction> function = mkuptr<LaFunction>(
+				extract_name(n[1]),
+				make_type(n[0])
+			);
+
+			const ParseNode &def_args_node = n[2];
+			assert(*def_args_node.rule == typeid(rules::DefArgsRule));
+			for (const Uptr<ParseNode> &child : def_args_node.children) {
+				const ParseNode &def_arg_node = *child;
+				assert(*def_arg_node.rule == typeid(rules::DefArgRule));
+				function->add_variable(
+					extract_name(def_arg_node[1]),
+					make_type(def_arg_node[0]),
+					true // is a paramter variable
+				);
+			}
 
 			return function;
 		}

@@ -385,6 +385,8 @@ namespace La::program {
 		std::string name;
 		Type type;
 
+		Variable(std::string name, Type type) : name { mv(name) }, type { type } {}
+
 		const std::string &get_name() const override { return this->name; }
 	};
 
@@ -400,6 +402,7 @@ namespace La::program {
 
 		const std::string &get_name() const override { return this->name; }
 		std::string to_string() const;
+		void add_variable(std::string name, Type type, bool is_parameter);
 	};
 
 	struct ExternalFunction : Nameable {

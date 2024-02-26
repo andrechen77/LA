@@ -197,7 +197,7 @@ namespace La::program {
 	std::string LaFunction::to_string() const {
 		std::string result = this->return_type.to_string() + " " + this->name + "(";
 		for (Variable *parameter_var : this->parameter_vars) {
-			result += parameter_var->name + ", ";
+			result += parameter_var->type.to_string() + " " + parameter_var->name + ", ";
 		}
 		result += ") {\n";
 		for (const Uptr<Instruction> &inst : this->instructions) {
@@ -205,6 +205,14 @@ namespace La::program {
 		}
 		result += "}\n";
 		return result;
+	}
+	void LaFunction::add_variable(std::string name, Type type, bool is_parameter) {
+		Uptr<Variable> var_ptr = mkuptr<Variable>(name, type);
+		this->scope.resolve_item(mv(name), var_ptr.get());
+		if (is_parameter) {
+			this->parameter_vars.push_back(var_ptr.get());
+		}
+		this->vars.emplace_back(mv(var_ptr));
 	}
 
 	std::string Program::to_string() const {
