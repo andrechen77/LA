@@ -1,7 +1,7 @@
-#include "program.h"
+#include "hir.h"
 #include "std_alias.h"
 
-namespace La::program {
+namespace La::hir {
 	using namespace std_alias;
 
 	std::string Type::to_string() const {
@@ -71,7 +71,7 @@ namespace La::program {
 	}
 	std::string BinaryOperation::to_string() const {
 		return this->lhs->to_string()
-			+ " " + program::to_string(this->op)
+			+ " " + hir::to_string(this->op)
 			+ " " + this->rhs->to_string();
 	}
 

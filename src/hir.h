@@ -7,7 +7,13 @@
 #include <iostream>
 #include <tao/pegtl.hpp>
 
-namespace La::program {
+// The HIR, or "high-level intermediate representation", semantically describes
+// the content of an LA program. The HIR is lower level than an AST, but not as
+// low-level as the MIR. The HIR maps more to language constructs (expressions,
+// statements, etc) and thus can contain information about the source code of
+// the program (i.e. line numbers where expression appears) and is not a totally
+// abstract representation of the program.
+namespace La::hir {
 	using namespace std_alias;
 	namespace pegtl = TAO_PEGTL_NAMESPACE;
 	using SrcPos = pegtl::position;

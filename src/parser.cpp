@@ -470,7 +470,7 @@ namespace La::parser {
 
 
 	namespace node_processor {
-		using namespace La::program;
+		using namespace La::hir;
 
 		// TODO
 
@@ -755,7 +755,7 @@ namespace La::parser {
 		}
 	}
 
-	Uptr<La::program::Program> parse_file(char *fileName, Opt<std::string> parse_tree_output) {
+	Uptr<La::hir::Program> parse_file(char *fileName, Opt<std::string> parse_tree_output) {
 		using EntryPointRule = pegtl::must<rules::ProgramFile>;
 
 		// Check the grammar for some possible issues.
@@ -780,7 +780,7 @@ namespace La::parser {
 			}
 		}
 
-		Uptr<La::program::Program> ptr = node_processor::make_program((*root)[0]);
+		Uptr<La::hir::Program> ptr = node_processor::make_program((*root)[0]);
 		return ptr;
 	}
 }

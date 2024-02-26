@@ -61,7 +61,7 @@ int main(
 	}
 
 	// Parse the input file.
-	Uptr<La::program::Program> p = La::parser::parse_file(
+	Uptr<La::hir::Program> p = La::parser::parse_file(
 		argv[optind],
 		output_parse_tree ? std::make_optional("parse_tree.dot") : Opt<std::string>()
 	);
