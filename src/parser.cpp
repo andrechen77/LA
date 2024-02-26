@@ -1,5 +1,6 @@
 #include "std_alias.h"
 #include "parser.h"
+#include "utils.h"
 #include <typeinfo>
 #include <sched.h>
 #include <string>
@@ -496,6 +497,220 @@ namespace La::parser {
 			}
 		}
 
+		Uptr<ItemRef<Nameable>> make_name_ref(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::NameRule));
+			return mkuptr<ItemRef<Nameable>>(extract_name(n));
+		}
+
+		std::string make_label_ref(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::LabelRule));
+			return extract_name(n[0]);
+		}
+
+		Uptr<Expr> convert_inexplicable_t_rule(const ParseNode &n) {
+			const std::type_info &rule = *n.rule;
+			if (rule == typeid(rules::NameRule)) {
+				return make_name_ref(n);
+			} else if (rule == typeid(rules::NumberRule)) {
+				return mkuptr<NumberLiteral>(utils::string_view_to_int<int64_t>(n.string_view()));
+			} else {
+				std::cerr << "Logic error: inexhaustive over InexplicableT node possibilities\n";
+				exit(1);
+			}
+		}
+
+		Uptr<IndexingExpr> make_indexing_expr(const ParseNode &n) {
+			Uptr<ItemRef<Nameable>> target;
+			Vec<Uptr<Expr>> indices;
+
+			if (*n.rule == typeid(rules::IndexingExpressionRule)) {
+				target = make_name_ref(n[0]);
+				for (auto it = n.children.begin() + 1; it != n.children.end(); ++it) {
+					const ParseNode &index_node = **it;
+					indices.push_back(convert_inexplicable_t_rule(index_node));
+				}
+			} else if (*n.rule == typeid(rules::NameRule)) {
+				target = make_name_ref(n);
+			} else {
+				std::cerr << "Logic error: can't convert this ParseNode into an IndexingExpr\n";
+				exit(1);
+			}
+
+			return mkuptr<IndexingExpr>(
+				mv(target),
+				mv(indices)
+			);
+		}
+
+		Vec<Uptr<Expr>> make_call_args(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::CallArgsRule));
+			Vec<Uptr<Expr>> arguments;
+			for (const Uptr<ParseNode> &call_arg : n.children) {
+				arguments.emplace_back(convert_inexplicable_t_rule(*call_arg));
+			}
+			return arguments;
+		}
+
+		Uptr<FunctionCall> make_function_call(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::CallingExpressionRule));
+			return mkuptr<FunctionCall>(
+				make_name_ref(n[0]),
+				make_call_args(n[1])
+			);
+		}
+
+		Uptr<InstructionDeclaration> convert_instruction_declaration_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionDeclarationRule));
+			return mkuptr<InstructionDeclaration>(
+				extract_name(n[1]),
+				make_type(n[0])
+			);
+		}
+
+		Operator make_operator(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::OperatorRule));
+			return str_to_op(n.string_view());
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_op_assignment_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionOpAssignmentRule));
+			return mkuptr<InstructionAssignment>(
+				mkuptr<BinaryOperation>(
+					convert_inexplicable_t_rule(n[1]),
+					convert_inexplicable_t_rule(n[3]),
+					make_operator(n[2])
+				),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_read_tensor_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionReadTensorRule));
+			return mkuptr<InstructionAssignment>(
+				make_indexing_expr(n[1]),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_write_tensor_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionWriteTensorRule));
+			return mkuptr<InstructionAssignment>(
+				convert_inexplicable_t_rule(n[1]),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_get_length_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionGetLengthRule));
+			return mkuptr<InstructionAssignment>(
+				mkuptr<LengthGetter>(
+					make_name_ref(n[1]),
+					n.children.size() > 2 ? (convert_inexplicable_t_rule(n[2])) : (Opt<Uptr<Expr>>())
+				),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_call_void_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionCallVoidRule));
+			return mkuptr<InstructionAssignment>(
+				make_function_call(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_call_val_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionCallValRule));
+			return mkuptr<InstructionAssignment>(
+				make_function_call(n[1]),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_new_array_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionNewArrayRule));
+			return mkuptr<InstructionAssignment>(
+				mkuptr<NewArray>(make_call_args(n[1])),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionAssignment> convert_instruction_new_tuple_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionNewTupleRule));
+			Vec<Uptr<Expr>> call_args = make_call_args(n[1]);
+			if (call_args.size() != 1) {
+				std::cout << "Compiliation Error: new Tuple(...) expression expects exactly one argument\n";
+				exit(1);
+			}
+			return mkuptr<InstructionAssignment>(
+				mkuptr<NewTuple>(mv(call_args[0])),
+				make_indexing_expr(n[0])
+			);
+		}
+
+		Uptr<InstructionLabel> convert_instruction_label_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionLabelRule));
+			return mkuptr<InstructionLabel>(
+				make_label_ref(n[0])
+			);
+		}
+
+		Uptr<InstructionBranchUnconditional> convert_instruction_branch_uncond_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionBranchUncondRule));
+			return mkuptr<InstructionBranchUnconditional>(
+				make_label_ref(n[0])
+			);
+		}
+
+		Uptr<InstructionBranchConditional> convert_instruction_branch_cond_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionBranchCondRule));
+			return mkuptr<InstructionBranchConditional>(
+				convert_inexplicable_t_rule(n[0]),
+				make_label_ref(n[1]),
+				make_label_ref(n[2])
+			);
+		}
+
+		Uptr<InstructionReturn> convert_instruction_return_rule(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::InstructionReturnRule));
+			return mkuptr<InstructionReturn>(
+				n.children.size() > 0 ? (convert_inexplicable_t_rule(n[0])) : Opt<Uptr<Expr>>()
+			);
+		}
+
+		Uptr<Instruction> make_instruction(const ParseNode &n) {
+			const std::type_info &rule = *n.rule;
+			if (rule == typeid(rules::InstructionDeclarationRule)) {
+				return convert_instruction_declaration_rule(n);
+			} else if (rule == typeid(rules::InstructionOpAssignmentRule)) {
+				return convert_instruction_op_assignment_rule(n);
+			} else if (rule == typeid(rules::InstructionReadTensorRule)) {
+				return convert_instruction_read_tensor_rule(n);
+			} else if (rule == typeid(rules::InstructionWriteTensorRule)) {
+				return convert_instruction_write_tensor_rule(n);
+			} else if (rule == typeid(rules::InstructionGetLengthRule)) {
+				return convert_instruction_get_length_rule(n);
+			} else if (rule == typeid(rules::InstructionCallVoidRule)) {
+				return convert_instruction_call_void_rule(n);
+			} else if (rule == typeid(rules::InstructionCallValRule)) {
+				return convert_instruction_call_val_rule(n);
+			} else if (rule == typeid(rules::InstructionNewArrayRule)) {
+				return convert_instruction_new_array_rule(n);
+			} else if (rule == typeid(rules::InstructionNewTupleRule)) {
+				return convert_instruction_new_tuple_rule(n);
+			} else if (rule == typeid(rules::InstructionLabelRule)) {
+				return convert_instruction_label_rule(n);
+			} else if (rule == typeid(rules::InstructionBranchUncondRule)) {
+				return convert_instruction_branch_uncond_rule(n);
+			} else if (rule == typeid(rules::InstructionBranchCondRule)) {
+				return convert_instruction_branch_cond_rule(n);
+			} else if (rule == typeid(rules::InstructionReturnRule)) {
+				return convert_instruction_return_rule(n);
+			} else {
+				std::cerr << "Cannot make Instruction from this parse node.";
+				exit(1);
+			}
+		}
+
 		Uptr<LaFunction> make_la_function(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::FunctionDefinitionRule));
 
@@ -514,6 +729,12 @@ namespace La::parser {
 					make_type(def_arg_node[0]),
 					true // is a paramter variable
 				);
+			}
+
+			const ParseNode &instructions_node = n[3];
+			assert(*instructions_node.rule == typeid(rules::InstructionsRule));
+			for (const Uptr<ParseNode> &child : instructions_node.children) {
+				function->add_next_instruction(make_instruction(*child));
 			}
 
 			return function;

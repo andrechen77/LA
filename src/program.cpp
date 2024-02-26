@@ -98,7 +98,7 @@ namespace La::program {
 	std::string LengthGetter::to_string() const {
 		std::string result = "length " + this->target->to_string();
 		if (this->dimension.has_value()) {
-			result += this->dimension.value()->to_string();
+			result += " " + this->dimension.value()->to_string();
 		}
 		return result;
 	}
@@ -179,7 +179,7 @@ namespace La::program {
 
 	void InstructionBranchUnconditional::bind_to_scope(Scope<Nameable> &scope) {}
 	std::string InstructionBranchUnconditional::to_string() const {
-		return "br " + this->label_name;
+		return "br :" + this->label_name;
 	}
 
 	void InstructionBranchConditional::bind_to_scope(Scope<Nameable> &scope) {
@@ -213,6 +213,13 @@ namespace La::program {
 			this->parameter_vars.push_back(var_ptr.get());
 		}
 		this->vars.emplace_back(mv(var_ptr));
+	}
+	void LaFunction::add_next_instruction(Uptr<Instruction> inst) {
+		inst->bind_to_scope(this->scope);
+		if (InstructionDeclaration *inst_decl = dynamic_cast<InstructionDeclaration *>(inst.get())) {
+			this->add_variable(inst_decl->variable_name, inst_decl->type, false);
+		}
+		this->instructions.push_back(mv(inst));
 	}
 
 	std::string Program::to_string() const {

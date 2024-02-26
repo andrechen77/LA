@@ -95,6 +95,10 @@ namespace La::program {
 		Uptr<Expr> rhs;
 		Operator op;
 
+		BinaryOperation(Uptr<Expr> lhs, Uptr<Expr> rhs, Operator op) :
+			lhs { mv(lhs) }, rhs { mv(rhs) }, op { op }
+		{}
+
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
 	};
@@ -102,6 +106,10 @@ namespace La::program {
 	struct IndexingExpr : Expr {
 		Uptr<Expr> target;
 		Vec<Uptr<Expr>> indices;
+
+		IndexingExpr(Uptr<Expr> target, Vec<Uptr<Expr>> indices) :
+			target { mv(target) }, indices { mv(indices) }
+		{}
 
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
@@ -111,6 +119,10 @@ namespace La::program {
 		Uptr<Expr> target;
 		Opt<Uptr<Expr>> dimension;
 
+		LengthGetter(Uptr<Expr> target, Opt<Uptr<Expr>> dimension) :
+			target { mv(target) }, dimension { mv(dimension) }
+		{}
+
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
 	};
@@ -119,6 +131,10 @@ namespace La::program {
 		Uptr<Expr> callee;
 		Vec<Uptr<Expr>> arguments;
 
+		FunctionCall(Uptr<Expr> callee, Vec<Uptr<Expr>> arguments) :
+			callee { mv(callee) }, arguments { mv(arguments) }
+		{}
+
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
 	};
@@ -126,12 +142,16 @@ namespace La::program {
 	struct NewArray : Expr {
 		Vec<Uptr<Expr>> dimension_lengths;
 
+		NewArray(Vec<Uptr<Expr>> dimension_lengths) : dimension_lengths { mv(dimension_lengths) } {}
+
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
 	};
 
 	struct NewTuple : Expr {
 		Uptr<Expr> length;
+
+		NewTuple(Uptr<Expr> length) : length { mv(length) } {}
 
 		void bind_to_scope(Scope<Nameable> &agg_scope) override;
 		std::string to_string() const override;
@@ -147,6 +167,10 @@ namespace La::program {
 		Type type;
 		std::string variable_name;
 
+		InstructionDeclaration(std::string variable_name, Type type) :
+			variable_name { mv(variable_name) }, type { type }
+		{}
+
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
 	};
@@ -156,12 +180,17 @@ namespace La::program {
 		Opt<Uptr<IndexingExpr>> maybe_dest;
 		Uptr<Expr> source;
 
+		InstructionAssignment(Uptr<Expr> source) : maybe_dest {}, source { mv(source) } {}
+		InstructionAssignment(Uptr<Expr> source, Uptr<IndexingExpr> dest) : maybe_dest { mv(dest) }, source { mv(source) } {}
+
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
 	};
 
 	struct InstructionLabel : Instruction {
 		std::string label_name;
+
+		InstructionLabel(std::string label_name) : label_name { mv(label_name) } {}
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
@@ -170,12 +199,16 @@ namespace La::program {
 	struct InstructionReturn : Instruction {
 		Opt<Uptr<Expr>> return_value;
 
+		InstructionReturn(Opt<Uptr<Expr>> return_value) : return_value { mv(return_value) } {}
+
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
 	};
 
 	struct InstructionBranchUnconditional : Instruction {
 		std::string label_name; // TODO consider making it an ItemRef
+
+		InstructionBranchUnconditional(std::string label_name) : label_name { mv(label_name) } {}
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
@@ -185,6 +218,10 @@ namespace La::program {
 		Uptr<Expr> condition;
 		std::string then_label_name; // TODO consider making it an ItemRef
 		std::string else_label_name; // TODO consider making it an ItemRef
+
+		InstructionBranchConditional(Uptr<Expr> condition, std::string then_label_name, std::string else_label_name) :
+			condition { mv(condition) }, then_label_name { mv(then_label_name) }, else_label_name { mv(else_label_name) }
+		{}
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
@@ -403,6 +440,7 @@ namespace La::program {
 		const std::string &get_name() const override { return this->name; }
 		std::string to_string() const;
 		void add_variable(std::string name, Type type, bool is_parameter);
+		void add_next_instruction(Uptr<Instruction> inst);
 	};
 
 	struct ExternalFunction : Nameable {
