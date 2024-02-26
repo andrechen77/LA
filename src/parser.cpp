@@ -129,24 +129,26 @@ namespace La::parser {
 			>>
 		{};
 
-		struct ArrayTypeIndicator :
-			TAO_PEGTL_STRING("[]")
-		{};
+		struct Int64TypeRule : TAO_PEGTL_STRING("int64") {};
+		struct ArrayTypeIndicator : TAO_PEGTL_STRING("[]") {};
+		struct TupleTypeRule : TAO_PEGTL_STRING("tuple") {};
+		struct CodeTypeRule : TAO_PEGTL_STRING("code") {};
+		struct VoidTypeRule : TAO_PEGTL_STRING("void") {};
 
 		struct TypeRule :
 			sor<
 				seq<
-					rematch<NameRule, TAO_PEGTL_STRING("int64")>,
+					Int64TypeRule,
 					star<ArrayTypeIndicator>
 				>,
-				rematch<NameRule, TAO_PEGTL_STRING("tuple")>,
-				rematch<NameRule, TAO_PEGTL_STRING("code")>,
-				rematch<NameRule, TAO_PEGTL_STRING("void")>
+				TupleTypeRule,
+				CodeTypeRule,
+				VoidTypeRule
 			>
 		{};
 
 		struct NonVoidTypeRule :
-			minus<TypeRule, TAO_PEGTL_STRING("void")>
+			minus<TypeRule, VoidTypeRule>
 		{};
 
 		struct IndexingExpressionRule :
@@ -368,6 +370,11 @@ namespace La::parser {
 				CallArgsRule,
 				ArrayTypeIndicator,
 				TypeRule,
+				VoidTypeRule,
+				Int64TypeRule,
+				ArrayTypeIndicator,
+				TupleTypeRule,
+				CodeTypeRule,
 				IndexingExpressionRule,
 				CallingExpressionRule,
 				DefArgRule,
@@ -465,6 +472,48 @@ namespace La::parser {
 		using namespace La::program;
 
 		// TODO
+
+		std::string_view extract_name(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::NameRule));
+			return n.string_view();
+		}
+
+		Type make_type(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::TypeRule));
+			const std::type_info &type_rule = *n[0].rule;
+			if (type_rule == typeid(rules::VoidTypeRule)) {
+				return { Type::VoidType {} };
+			} else if (type_rule == typeid(rules::Int64TypeRule)) {
+				// the rest of the children must be ArrayTypeIndicators
+				return { Type::ArrayType { static_cast<int>(n.children.size() - 1) } };
+			} else if (type_rule == typeid(rules::TupleTypeRule)) {
+				return { Type::TupleType {} };
+			} else if (type_rule == typeid(rules::CodeTypeRule)) {
+				return { Type::CodeType {} };
+			} else {
+				std::cerr << "Logic error: inexhaustive over TypeRule node's children\n";
+				exit(1);
+			}
+		}
+
+		Uptr<LaFunction> make_la_function(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::FunctionDefinitionRule));
+
+			Type return_type = make_type(n[0]);
+			std::string_view name = extract_name(n[1]);
+			Uptr<LaFunction> function = mkuptr<LaFunction>(std::string(name), return_type);
+
+			return function;
+		}
+
+		Uptr<Program> make_program(const ParseNode &n) {
+			assert(*n.rule == typeid(rules::ProgramRule));
+			Uptr<Program> program = mkuptr<Program>();
+			for (const Uptr<ParseNode> &child : n.children) {
+				program->add_la_function(make_la_function(*child));
+			}
+			return program;
+		}
 	}
 
 	Uptr<La::program::Program> parse_file(char *fileName, Opt<std::string> parse_tree_output) {
@@ -492,8 +541,7 @@ namespace La::parser {
 			}
 		}
 
-		// Uptr<La::program::Program> ptr = node_processor::make_program((*root)[0]);
-		// return ptr;
-		return {};
+		Uptr<La::program::Program> ptr = node_processor::make_program((*root)[0]);
+		return ptr;
 	}
 }
