@@ -4,26 +4,6 @@
 namespace La::hir {
 	using namespace std_alias;
 
-	std::string Type::to_string() const {
-		const Variant *x = &this->type;
-		if (std::get_if<VoidType>(x)) {
-			return "void";
-		} else if (const ArrayType *array_type = std::get_if<ArrayType>(x)) {
-			std::string result = "int64";
-			for (int i = 0; i < array_type->num_dimensions; ++i) {
-				result += "[]";
-			}
-			return result;
-		} else if (std::get_if<TupleType>(x)) {
-			return "tuple";
-		} else if (std::get_if<CodeType>(x)) {
-			return "code";
-		} else {
-			std::cerr << "Logic error: inexhaustive Type variant\n";
-			exit(1);
-		}
-	}
-
 	template<> void ItemRef<Nameable>::bind_to_scope(Scope<Nameable> &scope) {
 		scope.add_ref(*this);
 	}
@@ -191,7 +171,7 @@ namespace La::hir {
 			+ " :" + this->else_label_name;
 	}
 
-	LaFunction::LaFunction(std::string name, Type return_type) :
+	LaFunction::LaFunction(std::string name, mir::Type return_type) :
 		name { mv(name) }, return_type { return_type }
 	{}
 	std::string LaFunction::to_string() const {
@@ -206,7 +186,7 @@ namespace La::hir {
 		result += "}\n";
 		return result;
 	}
-	void LaFunction::add_variable(std::string name, Type type, bool is_parameter) {
+	void LaFunction::add_variable(std::string name, mir::Type type, bool is_parameter) {
 		Uptr<Variable> var_ptr = mkuptr<Variable>(name, type);
 		this->scope.resolve_item(mv(name), var_ptr.get());
 		if (is_parameter) {

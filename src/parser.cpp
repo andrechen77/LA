@@ -1,6 +1,7 @@
 #include "std_alias.h"
 #include "parser.h"
 #include "utils.h"
+#include "mir.h"
 #include <typeinfo>
 #include <sched.h>
 #include <string>
@@ -471,8 +472,7 @@ namespace La::parser {
 
 	namespace node_processor {
 		using namespace La::hir;
-
-		// TODO
+		using mir::Type;
 
 		std::string extract_name(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::NameRule));

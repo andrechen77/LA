@@ -1,6 +1,7 @@
 #pragma once
 
 #include "std_alias.h"
+#include "mir.h"
 #include <variant>
 #include <string>
 #include <string_view>
@@ -12,22 +13,11 @@
 // low-level as the MIR. The HIR maps more to language constructs (expressions,
 // statements, etc) and thus can contain information about the source code of
 // the program (i.e. line numbers where expression appears) and is not a totally
-// abstract representation of the program.
+// abstract representation of the program. It does, however, refer to mir::Type.
 namespace La::hir {
 	using namespace std_alias;
 	namespace pegtl = TAO_PEGTL_NAMESPACE;
 	using SrcPos = pegtl::position;
-
-	struct Type {
-		struct VoidType {};
-		struct ArrayType { int num_dimensions; };
-		struct TupleType {};
-		struct CodeType {};
-		using Variant = std::variant<VoidType, ArrayType, TupleType, CodeType>;
-		Variant type;
-
-		std::string to_string() const;
-	};
 
 	template<typename Item> class Scope;
 	struct Nameable;
@@ -173,10 +163,10 @@ namespace La::hir {
 	};
 
 	struct InstructionDeclaration : Instruction {
-		Type type;
+		mir::Type type;
 		std::string variable_name;
 
-		InstructionDeclaration(std::string variable_name, Type type) :
+		InstructionDeclaration(std::string variable_name, mir::Type type) :
 			variable_name { mv(variable_name) }, type { type }
 		{}
 
@@ -429,26 +419,26 @@ namespace La::hir {
 
 	struct Variable : Nameable {
 		std::string name;
-		Type type;
+		mir::Type type;
 
-		Variable(std::string name, Type type) : name { mv(name) }, type { type } {}
+		Variable(std::string name, mir::Type type) : name { mv(name) }, type { type } {}
 
 		const std::string &get_name() const override { return this->name; }
 	};
 
 	struct LaFunction : Nameable {
 		std::string name;
-		Type return_type;
+		mir::Type return_type;
 		Vec<Uptr<Instruction>> instructions;
 		Vec<Uptr<Variable>> vars;
 		Vec<Variable *> parameter_vars;
 		Scope<Nameable> scope;
 
-		explicit LaFunction(std::string name, Type return_type);
+		explicit LaFunction(std::string name, mir::Type return_type);
 
 		const std::string &get_name() const override { return this->name; }
 		std::string to_string() const;
-		void add_variable(std::string name, Type type, bool is_parameter);
+		void add_variable(std::string name, mir::Type type, bool is_parameter);
 		void add_next_instruction(Uptr<Instruction> inst);
 	};
 
