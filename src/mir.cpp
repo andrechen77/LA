@@ -32,7 +32,11 @@ namespace mir {
 			std::cerr << "Logic error: void has no default value\n";
 			exit(1);
 		} else if (const ArrayType *array_type = std::get_if<ArrayType>(x)) {
-			return mkuptr<Int64Constant>(0);
+			if (array_type->num_dimensions == 0) {
+				return mkuptr<Int64Constant>(1);
+			} else {
+				return mkuptr<Int64Constant>(0);
+			}
 		} else if (std::get_if<TupleType>(x)) {
 			return mkuptr<Int64Constant>(0);
 		} else if (std::get_if<CodeType>(x)) {

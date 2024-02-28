@@ -213,7 +213,7 @@ namespace La::hir_to_mir {
 		void visit(hir::InstructionBranchConditional &inst) override {
 			this->ensure_active_basic_block();
 			this->active_basic_block_nullable->terminator = mir::BasicBlock::Branch {
-				this->evaluate_expr(inst.condition),
+				this->decode(this->evaluate_expr(inst.condition)),
 				this->get_basic_block_by_name(inst.then_label_name),
 				this->get_basic_block_by_name(inst.else_label_name)
 			};
@@ -297,30 +297,30 @@ namespace La::hir_to_mir {
 		// see also evaluate_expr
 		void evaluate_expr_into_existing_place(const Uptr<hir::Expr> &expr, Opt<Uptr<mir::Place>> place) {
 			if (const hir::BinaryOperation *bin_op = dynamic_cast<hir::BinaryOperation *>(expr.get())) {
+				mir::LocalVar *decoded_result = this->make_local_var_int64("");
 				this->add_inst(
-					mv(place),
+					mkuptr<mir::Place>(decoded_result),
 					mkuptr<mir::BinaryOperation>(
-						this->evaluate_expr(bin_op->lhs),
-						this->evaluate_expr(bin_op->rhs),
+						this->decode(this->evaluate_expr(bin_op->lhs)),
+						this->decode(this->evaluate_expr(bin_op->rhs)),
 						bin_op->op
 					)
+				);
+				this->add_inst(
+					mv(place),
+					this->encode(mkuptr<mir::Place>(decoded_result))
 				);
 			} else if (const hir::LengthGetter *length_getter = dynamic_cast<hir::LengthGetter *>(expr.get())) {
 				Opt<Uptr<mir::Operand>> dimension;
 				if (length_getter->dimension.has_value()) {
-					dimension = evaluate_expr(length_getter->dimension.value());
+					dimension = this->decode(this->evaluate_expr(length_getter->dimension.value()));
 				}
-				mir::LocalVar *temp_var = this->make_local_var_int64("");
 				this->add_inst(
-					mkuptr<mir::Place>(temp_var),
+					mv(place),
 					mkuptr<mir::LengthGetter>(
 						this->evaluate_expr(length_getter->target),
 						mv(dimension)
 					)
-				);
-				this->add_inst(
-					mv(place),
-					this->decode(mkuptr<mir::Place>(temp_var))
 				);
 			} else if (const hir::FunctionCall *call = dynamic_cast<hir::FunctionCall *>(expr.get())) {
 				this->add_inst(
@@ -330,16 +330,16 @@ namespace La::hir_to_mir {
 			} else if (const hir::NewArray *new_array = dynamic_cast<hir::NewArray *>(expr.get())) {
 				Vec<Uptr<mir::Operand>> dimension_lengths;
 				for (const Uptr<hir::Expr> &hir_dim_len : new_array->dimension_lengths) {
-					dimension_lengths.push_back(this->encode(this->evaluate_expr(hir_dim_len)));
+					dimension_lengths.push_back(this->evaluate_expr(hir_dim_len));
 				}
 				this->add_inst(
 					mv(place),
-					mkuptr<mir::NewArray>(mv(dimension_lengths)) // FUTURE this should be decoded, but the decoding should be a no-op anyway
+					mkuptr<mir::NewArray>(mv(dimension_lengths))
 				);
 			} else if (const hir::NewTuple *new_tuple = dynamic_cast<hir::NewTuple *>(expr.get())) {
 				this->add_inst(
 					mv(place),
-					mkuptr<mir::NewTuple>(this->encode(this->evaluate_expr(new_tuple->length))) // FUTURE this should be decoded, but the decoding should be a no-op anyway
+					mkuptr<mir::NewTuple>(this->evaluate_expr(new_tuple->length))
 				);
 			} else {
 				this->add_inst(
@@ -378,7 +378,7 @@ namespace La::hir_to_mir {
 					exit(1);
 				}
 			} else if (const hir::NumberLiteral *num_lit = dynamic_cast<hir::NumberLiteral *>(expr.get())) {
-				return mkuptr<mir::Int64Constant>(num_lit->value);
+				return this->encode(mkuptr<mir::Int64Constant>(num_lit->value));
 			} else if (const hir::IndexingExpr *indexing_expr = dynamic_cast<hir::IndexingExpr *>(expr.get())) {
 				return evaluate_indexing_expr(*indexing_expr);
 			} else {
@@ -389,9 +389,7 @@ namespace La::hir_to_mir {
 				// - creates a new LocalVar to act as a temporary to store the
 				//   intermediate results
 				std::cerr << "Logic Error: this expression is too complex to be converted to an mir::Operand\n";
-				// TODO this should exit
-				// exit(1);
-				return mkuptr<mir::Int64Constant>(696969);
+				exit(1);
 			}
 		}
 
@@ -410,11 +408,7 @@ namespace La::hir_to_mir {
 
 			Vec<Uptr<mir::Operand>> arguments;
 			for (const Uptr<hir::Expr> &hir_arg : call.arguments) {
-				Uptr<mir::Operand> arg_operand = this->evaluate_expr(hir_arg);
-				if (std_func_nullable) { // assume all std functions require encoding
-					arg_operand = this->encode(mv(arg_operand));
-				}
-				arguments.push_back(mv(arg_operand));
+				arguments.push_back(this->evaluate_expr(hir_arg));
 			}
 
 			Uptr<mir::Rvalue> result = mkuptr<mir::FunctionCall>(
@@ -427,7 +421,7 @@ namespace La::hir_to_mir {
 					mkuptr<mir::Place>(temp_var),
 					mv(result)
 				);
-				result = this->decode(mkuptr<mir::Place>(temp_var));
+				result = mkuptr<mir::Place>(temp_var);
 			}
 			return result;
 		}
@@ -492,7 +486,7 @@ namespace La::hir_to_mir {
 						// %errorindex <- %INDEX
 						this->add_inst(
 							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-							this->encode(mv(mir_index_clone0))
+							mv(mir_index_clone0)
 						);
 						// %errorlength <- length %TARGET DIM_NUM
 						this->add_inst(
@@ -532,7 +526,7 @@ namespace La::hir_to_mir {
 						// br %booooool :ERROR_REPORTER :CONTINUE
 						this->branch_to_block(error_reporter);
 
-						mir_indices.push_back(mv(mir_index));
+						mir_indices.push_back(this->decode(mv(mir_index)));
 					}
 				}
 
@@ -599,18 +593,42 @@ namespace La::hir_to_mir {
 				exit(1);
 			}
 		}
-		Uptr<mir::Rvalue> decode(Uptr<mir::Operand> operand) {
+		// Uptr<mir::Operand> evaluate_to_decoded(const Uptr<hir::Expr> &expr) {
+		// 	Uptr<mir::Operand> operand = this->evaluate_expr(expr);
+		// 	if (dynamic_cast<const hir::NumberLiteral *>(expr.get())) {
+		// 		// user-inputted constant, we can take a shortcut
+
+		// 	} else {
+		// 		// not a user-inputted constant, do decode
+		// 		mir::LocalVar *decoded_var = this->make_local_var_int64("");
+		// 		this->add_inst(
+		// 			mkuptr<mir::Place>(decoded_var),
+		// 			this->decode(mv(operand))
+		// 		);
+		// 		operand = mkuptr<mir::Place>(decoded_var);
+		// 	}
+		// 	return operand;
+		// }
+		Uptr<mir::Operand> decode(Uptr<mir::Operand> operand) {
 			if (mir::Place *place = dynamic_cast<mir::Place *>(operand.get())) {
 				// assume that it is an int64
 				assert(place->indices.size() == 0);
 				const mir::Type::ArrayType &arr_type = std::get<mir::Type::ArrayType>(place->target->type.type);
 				assert(arr_type.num_dimensions == 0);
 
-				return mkuptr<mir::BinaryOperation>(
-					mkuptr<mir::Place>(place->target),
-					mkuptr<mir::Int64Constant>(1),
-					mir::Operator::rshift
+				mir::LocalVar *decoded_var = this->make_local_var_int64("");
+				this->add_inst(
+					mkuptr<mir::Place>(decoded_var),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(place->target),
+						mkuptr<mir::Int64Constant>(1),
+						mir::Operator::rshift
+					)
 				);
+				return mkuptr<mir::Place>(decoded_var);
+
+			} else if (mir::Int64Constant *num = dynamic_cast<mir::Int64Constant *>(operand.get())) {
+				return mkuptr<mir::Int64Constant>(num->value >> 1);
 			} else {
 				std::cerr << "Logic error: can't decode this operand.\n";
 				exit(1);
