@@ -222,10 +222,11 @@ namespace mir {
 	struct ExternalFunction {
 		std::string name;
 		int num_parameters;
+		bool returns_val;
 		// TODO consider adding richer information about the function's signature
 
-		ExternalFunction(std::string name, int num_parameters) :
-			name { mv(name) }, num_parameters { num_parameters }
+		ExternalFunction(std::string name, int num_parameters, bool returns_val) :
+			name { mv(name) }, num_parameters { num_parameters }, returns_val { returns_val }
 		{}
 	};
 

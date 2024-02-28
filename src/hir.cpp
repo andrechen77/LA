@@ -215,14 +215,14 @@ namespace La::hir {
 
 	void link_std(Program &program) {
 		// includes all the information necessary to generate external-linkage
-		// ExternalFunctions; namely the name of the function and the number
-		// of parameters
-		static const Vec<Pair<std::string, int>> std_functions_info = {
-			{ "input", 0 },
-			{ "print", 1 }
+		// ExternalFunctions; namely the name of the function, the number
+		// of parameters, and whether the function returns a value
+		static const Vec<std::tuple<std::string, int, bool>> std_functions_info = {
+			{ "input", 0, true },
+			{ "print", 1, false }
 		};
-		for (const auto &[name, num_parameters] : std_functions_info) {
-			program.add_external_function(mkuptr<ExternalFunction>(name, num_parameters));
+		for (const auto &[name, num_parameters, returns_val] : std_functions_info) {
+			program.add_external_function(mkuptr<ExternalFunction>(name, num_parameters, returns_val));
 		}
 	}
 }

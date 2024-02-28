@@ -275,14 +275,14 @@ namespace La::hir_to_mir {
 				}
 				this->add_inst(
 					mv(place),
-					mkuptr<mir::NewArray>(mv(dimension_lengths))
+					mkuptr<mir::NewArray>(mv(dimension_lengths)) // FUTURE this should be decoded, but the decoding should be a no-op anyway
 				);
 			} else if (const hir::NewTuple *new_tuple = dynamic_cast<hir::NewTuple *>(expr.get())) {
 				this->add_inst(
 					mv(place),
-					mkuptr<mir::NewTuple>(this->encode(this->evaluate_expr(new_tuple->length)))
+					mkuptr<mir::NewTuple>(this->encode(this->evaluate_expr(new_tuple->length))) // FUTURE this should be decoded, but the decoding should be a no-op anyway
 				);
-			} else { // TODO add more cases
+			} else {
 				this->add_inst(
 					mv(place),
 					this->evaluate_expr(expr)
@@ -344,15 +344,15 @@ namespace La::hir_to_mir {
 			// (i.e. can't be stored in a variable and indirectly called), we
 			// only need to check here to see if we're calling an std function
 			// that needs encoding/decoding
-			bool requires_encoding_and_decoding = false;
+			mir::ExternalFunction *std_func_nullable = nullptr;
 			if (mir::ExtCodeConstant *ext_code = dynamic_cast<mir::ExtCodeConstant *>(callee_operand.get())) {
-				requires_encoding_and_decoding = true;
+				std_func_nullable = ext_code->value;
 			}
 
 			Vec<Uptr<mir::Operand>> arguments;
 			for (const Uptr<hir::Expr> &hir_arg : call.arguments) {
 				Uptr<mir::Operand> arg_operand = this->evaluate_expr(hir_arg);
-				if (requires_encoding_and_decoding) {
+				if (std_func_nullable) { // assume all std functions require encoding
 					arg_operand = this->encode(mv(arg_operand));
 				}
 				arguments.push_back(mv(arg_operand));
@@ -362,7 +362,7 @@ namespace La::hir_to_mir {
 				mv(callee_operand),
 				mv(arguments)
 			);
-			if (requires_encoding_and_decoding) {
+			if (std_func_nullable && std_func_nullable->returns_val) {
 				mir::LocalVar *temp_var = this->make_local_var_int64("");
 				this->add_inst(
 					mkuptr<mir::Place>(temp_var),

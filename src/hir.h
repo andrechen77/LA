@@ -458,7 +458,7 @@ namespace La::hir {
 	struct ExternalFunction : Nameable {
 		mir::ExternalFunction value;
 
-		ExternalFunction(std::string name, int num_parameters) : value(mv(name), num_parameters) {}
+		ExternalFunction(std::string name, int num_parameters, bool returns_val) : value(mv(name), num_parameters, returns_val) {}
 
 		const std::string &get_name() const override { return this->value.name; }
 	};
