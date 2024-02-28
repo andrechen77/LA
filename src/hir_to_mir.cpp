@@ -12,6 +12,12 @@ namespace La::hir_to_mir {
 		Map<hir::Variable *, mir::LocalVar *> &var_map;
 		Map<std::string, mir::BasicBlock *> block_map;
 
+		// local variables used for compiler purposes such as array checking
+		struct UtilLocalVars {
+			mir::LocalVar *temp_condition; // used to store the value of a really short-lived boolean condition
+			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes
+		} util_locals;
+
 		// null if the previous BasicBlock already has a terminator or there are no BasicBlocks yet
 		mir::BasicBlock *active_basic_block_nullable;
 
@@ -34,8 +40,12 @@ namespace La::hir_to_mir {
 			func_map { func_map },
 			var_map { var_map },
 			block_map {},
+			util_locals { /* initialize in body */ },
 			active_basic_block_nullable { nullptr }
-		{}
+		{
+			util_locals.line_number = this->make_local_var_int64("linenum");
+			util_locals.temp_condition = this->make_local_var_int64("booooool");
+		}
 
 		void visit(hir::InstructionDeclaration &inst) override {
 			// do nothing; variables were already added
@@ -97,6 +107,14 @@ namespace La::hir_to_mir {
 		}
 
 		private:
+
+		mir::LocalVar *make_local_var_int64(std::string debug_name) {
+			auto var_ptr = mkuptr<mir::LocalVar>(false, mv(debug_name), mir::Type { mir::Type::ArrayType { 0 } });
+			mir::LocalVar *result = var_ptr.get();
+			this->mir_function.local_vars.push_back(mv(var_ptr)); // TODO consider push_front?
+			return result;
+		}
+
 		// empty label name if anonymous block
 		// sets the new basic block to be the current basic block
 		void enter_basic_block(std::string_view label_name) {
@@ -284,6 +302,7 @@ namespace La::hir_to_mir {
 		// transfer the user-declared local variables and parameters
 		for (const Uptr<hir::Variable> &hir_var : hir_function.vars) {
 			Uptr<mir::LocalVar> mir_var = mkuptr<mir::LocalVar>(
+				true,
 				hir_var->name,
 				hir_var->type
 			);

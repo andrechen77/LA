@@ -29,11 +29,12 @@ namespace mir {
 	// any function-local location in memory, including user-defined local
 	// variables as well as compiler-defined temporaries
 	struct LocalVar {
-		std::string user_given_name; // empty means anonymous
+		bool is_user_declared;
+		std::string name; // empty means anonymous
 		Type type;
 
-		LocalVar(std::string user_given_name, Type type) :
-			user_given_name { mv(user_given_name) }, type { type }
+		LocalVar(bool is_user_declared, std::string name, Type type) :
+			is_user_declared { is_user_declared }, name { mv(name) }, type { type }
 		{}
 
 		std::string to_ir_syntax() const;

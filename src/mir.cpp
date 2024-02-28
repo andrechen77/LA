@@ -43,7 +43,11 @@ namespace mir {
 		return "%" + this->get_unambiguous_name();
 	}
 	std::string LocalVar::get_unambiguous_name() const {
-		return /* "var_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + */ this->user_given_name;
+		if (this->is_user_declared) {
+			return "uservar_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->name;
+		} else {
+			return this->name;
+		}
 	}
 	std::string LocalVar::get_declaration() const {
 		return this->type.to_ir_syntax() + " " + this->to_ir_syntax();
@@ -130,8 +134,8 @@ namespace mir {
 		if (vars_to_initialize.has_value()) {
 			for (LocalVar *local_var : vars_to_initialize.value()) {
 				result += "\t" + local_var->get_declaration() + "\n";
-				if (local_var->user_given_name.size() > 0) {
-					// is user-declared, must have an initializer
+				if (local_var->is_user_declared) {
+					// must have an initializer
 					result += "\t" + local_var->get_initialization() + "\n";
 				}
 			}
