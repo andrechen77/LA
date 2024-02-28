@@ -48,6 +48,8 @@ namespace mir {
 	std::string LocalVar::get_unambiguous_name() const {
 		if (this->is_user_declared) {
 			return "uservar_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->name;
+		} else if (this->name.size() == 0) {
+			return "var_" + std::to_string(reinterpret_cast<uintptr_t>(this));
 		} else {
 			return this->name;
 		}

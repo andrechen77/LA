@@ -331,7 +331,7 @@ namespace La::hir_to_mir {
 			}
 		}
 
-		Uptr<mir::FunctionCall> evaluate_function_call(const hir::FunctionCall &call) {
+		Uptr<mir::Rvalue> evaluate_function_call(const hir::FunctionCall &call) {
 			// FUTURE could add a check for if the callee is 0
 
 			Vec<Uptr<mir::Operand>> arguments;
@@ -451,6 +451,61 @@ namespace La::hir_to_mir {
 				mir_var,
 				mv(mir_indices)
 			);
+		}
+
+		Uptr<mir::Operand> encode(Uptr<mir::Operand> operand) {
+			if (mir::Int64Constant *num = dynamic_cast<mir::Int64Constant *>(operand.get())) {
+				num->value = num->value * 2 + 1;
+				return operand;
+			} else if (mir::Place *place = dynamic_cast<mir::Place *>(operand.get())) {
+				// assume that it is an int64
+				assert(place->indices.size() == 0);
+				const mir::Type::ArrayType &arr_type = std::get<mir::Type::ArrayType>(place->target->type.type);
+				assert(arr_type.num_dimensions == 0);
+
+				// %TEMP_VAR <- %OPERAND << 1
+				mir::LocalVar *temp_var = this->make_local_var_int64("");
+				this->add_inst(
+					mkuptr<mir::Place>(temp_var),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(place->target),
+						mkuptr<mir::Int64Constant>(1),
+						mir::Operator::lshift
+					)
+				);
+				// %TEMP_VAR <- %TEMP_VAR + 1
+				this->add_inst(
+					mkuptr<mir::Place>(temp_var),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(temp_var),
+						mkuptr<mir::Int64Constant>(1),
+						mir::Operator::plus
+					)
+				);
+
+				// %TEMP_VAR holds our encoded value
+				return mkuptr<mir::Place>(temp_var);
+			} else {
+				std::cerr << "Logic error: can't encode this operand.\n";
+				exit(1);
+			}
+		}
+		Uptr<mir::Rvalue> decode(Uptr<mir::Operand> operand) {
+			if (mir::Place *place = dynamic_cast<mir::Place *>(operand.get())) {
+				// assume that it is an int64
+				assert(place->indices.size() == 0);
+				const mir::Type::ArrayType &arr_type = std::get<mir::Type::ArrayType>(place->target->type.type);
+				assert(arr_type.num_dimensions == 0);
+
+				return mkuptr<mir::BinaryOperation>(
+					mkuptr<mir::Place>(place->target),
+					mkuptr<mir::Int64Constant>(1),
+					mir::Operator::rshift
+				);
+			} else {
+				std::cerr << "Logic error: can't decode this operand.\n";
+				exit(1);
+			}
 		}
 	};
 
