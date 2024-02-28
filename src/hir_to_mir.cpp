@@ -128,14 +128,14 @@ namespace La::hir_to_mir {
 		// block if necessary in order to evaluate the given expression
 		// (including its side effects)
 		// see also evaluate_expr
-		void evaluate_expr_into_existing_place(const Uptr<hir::Expr> &expr, Uptr<mir::Place> place) {
+		void evaluate_expr_into_existing_place(const Uptr<hir::Expr> &expr, Opt<Uptr<mir::Place>> place) {
 			Vec<Uptr<mir::Instruction>> &instructions = this->active_basic_block_nullable->instructions;
 			if (const hir::BinaryOperation *bin_op = dynamic_cast<hir::BinaryOperation *>(expr.get())) {
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),
 					mkuptr<mir::BinaryOperation>(
-						evaluate_expr(bin_op->lhs),
-						evaluate_expr(bin_op->rhs),
+						this->evaluate_expr(bin_op->lhs),
+						this->evaluate_expr(bin_op->rhs),
 						bin_op->op
 					)
 				));
@@ -147,14 +147,14 @@ namespace La::hir_to_mir {
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),
 					mkuptr<mir::LengthGetter>(
-						evaluate_expr(length_getter->target),
+						this->evaluate_expr(length_getter->target),
 						mv(dimension)
 					)
 				));
 			} else { // TODO add more cases
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),
-					evaluate_expr(expr)
+					this->evaluate_expr(expr)
 				));
 			}
 		}
@@ -209,7 +209,7 @@ namespace La::hir_to_mir {
 
 			Vec<Uptr<mir::Operand>> mir_indices;
 			for (const Uptr<hir::Expr> &hir_index : indexing_expr.indices) {
-				mir_indices.push_back(evaluate_expr(hir_index));
+				mir_indices.push_back(this->evaluate_expr(hir_index));
 			}
 
 			return mkuptr<mir::Place>(
