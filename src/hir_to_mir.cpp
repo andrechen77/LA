@@ -259,16 +259,9 @@ namespace La::hir_to_mir {
 					)
 				);
 			} else if (const hir::FunctionCall *call = dynamic_cast<hir::FunctionCall *>(expr.get())) {
-				Vec<Uptr<mir::Operand>> arguments;
-				for (const Uptr<hir::Expr> &hir_arg : call->arguments) {
-					arguments.push_back(this->evaluate_expr(hir_arg));
-				}
 				this->add_inst(
 					mv(place),
-					mkuptr<mir::FunctionCall>(
-						this->evaluate_expr(call->callee),
-						mv(arguments)
-					)
+					this->evaluate_function_call(*call)
 				);
 			} else if (const hir::NewArray *new_array = dynamic_cast<hir::NewArray *>(expr.get())) {
 				Vec<Uptr<mir::Operand>> dimension_lengths;
@@ -336,6 +329,19 @@ namespace La::hir_to_mir {
 				// exit(1);
 				return mkuptr<mir::Int64Constant>(696969);
 			}
+		}
+
+		Uptr<mir::FunctionCall> evaluate_function_call(const hir::FunctionCall &call) {
+			// FUTURE could add a check for if the callee is 0
+
+			Vec<Uptr<mir::Operand>> arguments;
+			for (const Uptr<hir::Expr> &hir_arg : call.arguments) {
+				arguments.push_back(this->evaluate_expr(hir_arg));
+			}
+			return mkuptr<mir::FunctionCall>(
+				this->evaluate_expr(call.callee),
+				mv(arguments)
+			);
 		}
 
 		Uptr<mir::Place> evaluate_indexing_expr(const hir::IndexingExpr &indexing_expr) {
