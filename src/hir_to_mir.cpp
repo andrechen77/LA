@@ -16,7 +16,10 @@ namespace La::hir_to_mir {
 		struct CompilerAdditions {
 			mir::LocalVar *temp_condition; // used to store the value of a really short-lived boolean condition
 			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes
+			mir::LocalVar *error_length; // used to store the dimension length for tensor-error etc.
+			mir::LocalVar *error_index; // used to store the dimension length for tensor-error etc.
 			mir::BasicBlock *unalloced_error; // used to report use of an unallocated tensor
+			mir::BasicBlock *out_of_range_one_dim_error; // used to report use of an out-of-range 1D tensor
 		} compiler_additions;
 
 		// null if the previous BasicBlock already has a terminator or there are no BasicBlocks yet
@@ -46,6 +49,8 @@ namespace La::hir_to_mir {
 		{
 			compiler_additions.line_number = this->make_local_var_int64("linenum");
 			compiler_additions.temp_condition = this->make_local_var_int64("booooool");
+			compiler_additions.error_length = this->make_local_var_int64("errorlength");
+			compiler_additions.error_index = this->make_local_var_int64("errorindex");
 
 			compiler_additions.unalloced_error = this->create_basic_block(false, "unallocederror");
 			Vec<Uptr<mir::Operand>> unalloced_error_args;
@@ -55,6 +60,19 @@ namespace La::hir_to_mir {
 				mkuptr<mir::FunctionCall>(
 					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
 					mv(unalloced_error_args)
+				)
+			));
+
+			compiler_additions.out_of_range_one_dim_error = this->create_basic_block(false, "outofrangeonedim");
+			Vec<Uptr<mir::Operand>> out_of_range_dim_error_args;
+			out_of_range_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
+			out_of_range_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_length));
+			out_of_range_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_index));
+			compiler_additions.out_of_range_one_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
+				Opt<Uptr<mir::Place>>(),
+				mkuptr<mir::FunctionCall>(
+					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
+					mv(out_of_range_dim_error_args)
 				)
 			));
 		}
@@ -303,11 +321,13 @@ namespace La::hir_to_mir {
 			mir::LocalVar *mir_var = this->var_map.at(hir_var);
 
 			if (indexing_expr.indices.size() > 0) {
-				// store the line number in case it's an error
+				// check that the array was allocated
+				// %linenum <- LINE_NUM
 				this->add_inst(
 					mkuptr<mir::Place>(this->compiler_additions.line_number),
 					mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line))
 				);
+				// %booooool <- %TARGET = 0
 				this->add_inst(
 					mkuptr<mir::Place>(this->compiler_additions.temp_condition),
 					mkuptr<mir::BinaryOperation>(
@@ -316,12 +336,53 @@ namespace La::hir_to_mir {
 						mir::Operator::eq
 					)
 				);
+				// br %booooool :unallocederror :CONTINUE
 				this->branch_to_block(this->compiler_additions.unalloced_error);
 			}
 
 			Vec<Uptr<mir::Operand>> mir_indices;
-			for (const Uptr<hir::Expr> &hir_index : indexing_expr.indices) {
-				mir_indices.push_back(this->evaluate_expr(hir_index));
+			for (int dim_num = 0; dim_num < indexing_expr.indices.size(); ++dim_num) {
+				const Uptr<hir::Expr> &hir_index = indexing_expr.indices[dim_num];
+
+				Uptr<mir::Operand> mir_index = this->evaluate_expr(hir_index);
+				Uptr<mir::Operand> mir_index_clone0 = this->evaluate_expr(hir_index); // FUTURE rn we just use this for a quick and dirty clone, which works because all expressions in an index position in LA are simple
+
+				// %errorindex <- %INDEX
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.error_index),
+					mv(mir_index_clone0)
+				);
+				// %booooool <- %errorindex < 0
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(this->compiler_additions.error_index),
+						mkuptr<mir::Int64Constant>(0),
+						mir::Operator::lt
+					)
+				);
+				// br %booooool :outofrangeonedim :CONTINUE
+				this->branch_to_block(this->compiler_additions.out_of_range_one_dim_error);
+				// %errorlength <- length %TARGET 1
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.error_length),
+					mkuptr<mir::LengthGetter>(
+						mkuptr<mir::Place>(mir_var),
+						mkuptr<mir::Int64Constant>(dim_num)
+					)
+				);
+				// %booooool <- %errorindex >= %errorlength
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(this->compiler_additions.error_index),
+						mkuptr<mir::Place>(this->compiler_additions.error_length),
+						mir::Operator::ge
+					)
+				);
+				// br %booooool :outofrangeonedim :CONTINUE
+				this->branch_to_block(this->compiler_additions.out_of_range_one_dim_error);
+				mir_indices.push_back(mv(mir_index));
 			}
 
 			return mkuptr<mir::Place>(
