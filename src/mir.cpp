@@ -84,12 +84,25 @@ namespace mir {
 	}
 
 	std::string FunctionCall::to_ir_syntax() const {
-		std::string result = this->callee->to_ir_syntax() + "(";
+		std::string result = "call " + this->callee->to_ir_syntax() + "(";
 		for (const Uptr<Operand> &arg : this->arguments) {
 			result += arg->to_ir_syntax() + ", ";
 		}
 		result += ")";
 		return result;
+	}
+
+	std::string NewArray::to_ir_syntax() const {
+		std::string result = "new Array(";
+		for (const Uptr<Operand> &arg : this->dimension_lengths) {
+			result += arg->to_ir_syntax() + ", ";
+		}
+		result += ")";
+		return result;
+	}
+
+	std::string NewTuple::to_ir_syntax() const {
+		return "new Tuple(" + this->length->to_ir_syntax() + ")";
 	}
 
 	std::string BasicBlock::to_ir_syntax() const {

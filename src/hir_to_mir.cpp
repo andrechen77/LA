@@ -173,6 +173,20 @@ namespace La::hir_to_mir {
 						mv(arguments)
 					)
 				));
+			} else if (const hir::NewArray *new_array = dynamic_cast<hir::NewArray *>(expr.get())) {
+				Vec<Uptr<mir::Operand>> dimension_lengths;
+				for (const Uptr<hir::Expr> &hir_dim_len : new_array->dimension_lengths) {
+					dimension_lengths.push_back(this->evaluate_expr(hir_dim_len));
+				}
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					mkuptr<mir::NewArray>(mv(dimension_lengths))
+				));
+			} else if (const hir::NewTuple *new_tuple = dynamic_cast<hir::NewTuple *>(expr.get())) {
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					mkuptr<mir::NewTuple>(this->evaluate_expr(new_tuple->length))
+				));
 			} else { // TODO add more cases
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),

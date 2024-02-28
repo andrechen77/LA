@@ -142,11 +142,15 @@ namespace mir {
 	struct NewArray : Rvalue {
 		Vec<Uptr<Operand>> dimension_lengths;
 
+		NewArray(Vec<Uptr<Operand>> dimension_lengths) : dimension_lengths { mv(dimension_lengths) } {}
+
 		std::string to_ir_syntax() const override;
 	};
 
 	struct NewTuple : Rvalue {
 		Uptr<Operand> length;
+
+		NewTuple(Uptr<Operand> length) : length { mv(length) } {}
 
 		std::string to_ir_syntax() const override;
 	};
