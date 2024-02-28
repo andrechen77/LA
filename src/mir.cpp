@@ -56,9 +56,19 @@ namespace mir {
 		return map[static_cast<int>(op)];
 	}
 
+	std::string BinaryOperation::to_ir_syntax() const {
+		return this->lhs->to_ir_syntax() + " "
+			+ mir::to_string(this->op) + " "
+			+ this->rhs->to_ir_syntax();
+	}
+
 	std::string Instruction::to_ir_syntax() const {
-		// TODO fill out
-		return "mir::Instruction here";
+		std::string result;
+		if (this->destination.has_value()) {
+			result += this->destination.value()->to_ir_syntax() + " <- ";
+		}
+		result += this->rvalue->to_ir_syntax();
+		return result;
 	}
 
 	std::string BasicBlock::to_ir_syntax() const {

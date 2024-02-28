@@ -5,34 +5,6 @@
 namespace La::hir_to_mir {
 	using namespace std_alias;
 
-	Uptr<mir::Operand> convert_expr_to_operand(
-		const Uptr<hir::Expr> &expr,
-		const Map<hir::LaFunction *, mir::FunctionDef *> &func_map,
-		const Map<hir::Variable *, mir::LocalVar *> &var_map
-	) {
-		if (const hir::ItemRef<hir::Nameable> *item_ref = dynamic_cast<hir::ItemRef<hir::Nameable> *>(expr.get())) {
-			hir::Nameable *referent = item_ref->get_referent().value();
-			if (hir::Variable *hir_var = dynamic_cast<hir::Variable *>(referent)) {
-				mir::LocalVar *mir_var = var_map.at(hir_var);
-				return mkuptr<mir::Place>(
-					mir_var,
-					Vec<Uptr<mir::Operand>> {}
-				);
-			} else if (hir::LaFunction *hir_func = dynamic_cast<hir::LaFunction *>(referent)) {
-				mir::FunctionDef *mir_func = func_map.at(hir_func);
-				return mkuptr<mir::CodeConstant>(mir_func);
-			} else {
-				std::cerr << "Logic Error: probably forgot to handle case of hir::ExternalFunction\n";
-				exit(1);
-			}
-		} else if (const hir::NumberLiteral *num_lit = dynamic_cast<hir::NumberLiteral *>(expr.get())) {
-			return mkuptr<mir::Int64Constant>(num_lit->value);
-		} else {
-			std::cerr << "Logic Error: this expression is too complex to be converted to an mir::Operand\n";
-			exit(1);
-		}
-	}
-
 	class InstructionAdder : public hir::InstructionVisitor {
 		mir::FunctionDef &mir_function;
 		const Map<hir::LaFunction *, mir::FunctionDef *> &func_map;
@@ -58,6 +30,14 @@ namespace La::hir_to_mir {
 		void visit(hir::InstructionAssignment &inst) override {
 			this->ensure_active_basic_block();
 			// TODO add decoding and shit
+			if (inst.maybe_dest.has_value()) {
+				this->evaluate_expr_into_existing_place(
+					inst.source,
+					evaluate_indexing_expr(*inst.maybe_dest.value())
+				);
+			} else {
+				// TODO do nothing
+			}
 		}
 		void visit(hir::InstructionLabel &inst) override {
 			// must start a new basic block
@@ -75,7 +55,7 @@ namespace La::hir_to_mir {
 			mir::BasicBlock::Terminator terminator;
 			if (inst.return_value.has_value()) {
 				terminator = mir::BasicBlock::ReturnVal {
-					convert_expr_to_operand(*inst.return_value, this->func_map, this->var_map)
+					this->evaluate_expr(*inst.return_value)
 				};
 			} else {
 				terminator = mir::BasicBlock::ReturnVoid {};
@@ -93,7 +73,7 @@ namespace La::hir_to_mir {
 		void visit(hir::InstructionBranchConditional &inst) override {
 			this->ensure_active_basic_block();
 			this->active_basic_block_nullable->terminator = mir::BasicBlock::Branch {
-				convert_expr_to_operand(inst.condition, this->func_map, this->var_map),
+				this->evaluate_expr(inst.condition),
 				this->get_basic_block_by_name(inst.then_label_name),
 				this->get_basic_block_by_name(inst.else_label_name)
 			};
@@ -141,6 +121,89 @@ namespace La::hir_to_mir {
 				}
 			}
 			return block_ptr;
+		}
+
+		// stores in the given place the result of the hir::Expr, adding
+		// mir::Instructions (and possibly temporaries) to the active basic
+		// block if necessary in order to evaluate the given expression
+		// (including its side effects)
+		// see also evaluate_expr
+		void evaluate_expr_into_existing_place(const Uptr<hir::Expr> &expr, Uptr<mir::Place> place) {
+			Vec<Uptr<mir::Instruction>> &instructions = this->active_basic_block_nullable->instructions;
+			if (const hir::BinaryOperation *bin_op = dynamic_cast<hir::BinaryOperation *>(expr.get())) {
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					mkuptr<mir::BinaryOperation>(
+						evaluate_expr(bin_op->lhs),
+						evaluate_expr(bin_op->rhs),
+						bin_op->op
+					)
+				));
+			} else { // TODO add more cases
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					evaluate_expr(expr)
+				));
+			}
+		}
+
+		// returns an mir::Operand which refers to the result of the hir::Expr,
+		// adding mir::Instructions (and possibly temporaries) to the active
+		// basic block if necessary in order to evaluate the given expression
+		// (including its side effects)
+		// see also evaluate_expr_into_existing_place
+		Uptr<mir::Operand> evaluate_expr(const Uptr<hir::Expr> &expr) {
+			if (const hir::ItemRef<hir::Nameable> *item_ref = dynamic_cast<hir::ItemRef<hir::Nameable> *>(expr.get())) {
+				hir::Nameable *referent = item_ref->get_referent().value();
+				if (hir::Variable *hir_var = dynamic_cast<hir::Variable *>(referent)) {
+					mir::LocalVar *mir_var = this->var_map.at(hir_var);
+					return mkuptr<mir::Place>(
+						mir_var,
+						Vec<Uptr<mir::Operand>> {}
+					);
+				} else if (hir::LaFunction *hir_func = dynamic_cast<hir::LaFunction *>(referent)) {
+					mir::FunctionDef *mir_func = this->func_map.at(hir_func);
+					return mkuptr<mir::CodeConstant>(mir_func);
+				} else {
+					std::cerr << "Logic Error: probably forgot to handle case of hir::ExternalFunction\n";
+					exit(1);
+				}
+			} else if (const hir::NumberLiteral *num_lit = dynamic_cast<hir::NumberLiteral *>(expr.get())) {
+				return mkuptr<mir::Int64Constant>(num_lit->value);
+			} else if (const hir::IndexingExpr *indexing_expr = dynamic_cast<hir::IndexingExpr *>(expr.get())) {
+				return evaluate_indexing_expr(*indexing_expr);
+			} else {
+				// FUTURE: LA doesn't allow expressions this complex, but if it
+				// did then this is where we could add logic that:
+				// - calls evaluate_expr_into_existing_local_var to evaluate the
+				//   more complex expression
+				// - creates a new LocalVar to act as a temporary to store the
+				//   intermediate results
+				std::cerr << "Logic Error: this expression is too complex to be converted to an mir::Operand\n";
+				// TODO this should exit
+				// exit(1);
+				return mkuptr<mir::Int64Constant>(696969);
+			}
+		}
+
+		Uptr<mir::Place> evaluate_indexing_expr(const hir::IndexingExpr &indexing_expr) {
+			// FUTURE even though the HIR allows it, the LA language allows us
+			// to safely assume that the target of an indexing expression just
+			// refers to a local variable
+			const hir::ItemRef<hir::Nameable> &item_ref = dynamic_cast<const hir::ItemRef<hir::Nameable> &>(*indexing_expr.target);
+			hir::Variable *hir_var = dynamic_cast<hir::Variable *>(item_ref.get_referent().value());
+			assert(hir_var != nullptr);
+			mir::LocalVar *mir_var = this->var_map.at(hir_var);
+
+			Vec<Uptr<mir::Operand>> mir_indices;
+			for (const Uptr<hir::Expr> &hir_index : indexing_expr.indices) {
+				mir_indices.push_back(evaluate_expr(hir_index));
+			}
+
+			return mkuptr<mir::Place>(
+				mir_var,
+				mv(mir_indices)
+			);
 		}
 	};
 

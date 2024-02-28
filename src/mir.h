@@ -100,6 +100,10 @@ namespace mir {
 		Uptr<Operand> rhs;
 		Operator op;
 
+		BinaryOperation(Uptr<Operand> lhs, Uptr<Operand> rhs, Operator op) :
+			lhs { mv(lhs) }, rhs { mv(rhs) }, op { op }
+		{}
+
 		std::string to_ir_syntax() const override;
 	};
 
@@ -134,8 +138,12 @@ namespace mir {
 	// an LA instruction
 	// interface
 	struct Instruction {
-		Opt<Place> destination;
+		Opt<Uptr<Place>> destination;
 		Uptr<Rvalue> rvalue;
+
+		Instruction(Opt<Uptr<Place>> destination, Uptr<Rvalue> rvalue) :
+			destination { mv(destination) }, rvalue { mv(rvalue) }
+		{}
 
 		std::string to_ir_syntax() const;
 	};

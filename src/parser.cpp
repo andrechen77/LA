@@ -473,6 +473,7 @@ namespace La::parser {
 	namespace node_processor {
 		using namespace La::hir;
 		using mir::Type;
+		using mir::Operator;
 
 		std::string extract_name(const ParseNode &n) {
 			assert(*n.rule == typeid(rules::NameRule));
