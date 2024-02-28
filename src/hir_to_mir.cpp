@@ -16,10 +16,10 @@ namespace La::hir_to_mir {
 		// nullptr if we did not use them
 		struct CompilerAdditions {
 			mir::LocalVar *temp_condition; // used to store the value of a really short-lived boolean condition
-			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes
-			mir::LocalVar *error_dim; // used to store the dimension index for tensor-error etc.
-			mir::LocalVar *error_length; // used to store the dimension length for tensor-error etc.
-			mir::LocalVar *error_index; // used to store the index for tensor-error etc.
+			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes; ENCODED
+			mir::LocalVar *error_dim; // used to store the dimension index for tensor-error etc.; NOT ENCODED
+			mir::LocalVar *error_length; // used to store the dimension length for tensor-error etc.; ENCODED
+			mir::LocalVar *error_index; // used to store the index for tensor-error etc.; ENCODED
 			mir::BasicBlock *unalloced_error; // used to report use of an unallocated tensor
 			mir::BasicBlock *out_of_range_tuple_error; // used to report use of an out-of-range tuple
 			mir::BasicBlock *out_of_range_one_dim_error; // used to report use of an out-of-range 1D tensor
@@ -118,7 +118,7 @@ namespace La::hir_to_mir {
 				this->compiler_additions.out_of_range_multi_dim_error = this->create_basic_block(false, "outofrangemultidim");
 				Vec<Uptr<mir::Operand>> args;
 				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_line_number()));
-				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_dim()));
+				args.push_back(this->encode(mkuptr<mir::Place>(this->get_compiler_addition_error_dim())));
 				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_length()));
 				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_index()));
 				compiler_additions.out_of_range_multi_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
@@ -447,7 +447,7 @@ namespace La::hir_to_mir {
 				// %linenum <- LINE_NUM
 				this->add_inst(
 					mkuptr<mir::Place>(this->get_compiler_addition_line_number()),
-					mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line))
+					this->encode(mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line)))
 				);
 				// %booooool <- %TARGET = 0
 				this->add_inst(
@@ -488,14 +488,14 @@ namespace La::hir_to_mir {
 					// %errorindex <- %INDEX
 					this->add_inst(
 						mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-						mv(mir_index_clone0)
+						this->encode(mv(mir_index_clone0))
 					);
-					// %booooool <- %errorindex < 0
+					// %booooool <- %errorindex < 1; compare with 1 instead of 0 because encoded(0) == 1
 					this->add_inst(
 						mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 						mkuptr<mir::BinaryOperation>(
 							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-							mkuptr<mir::Int64Constant>(0),
+							mkuptr<mir::Int64Constant>(1),
 							mir::Operator::lt
 						)
 					);
