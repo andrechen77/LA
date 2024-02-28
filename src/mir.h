@@ -229,6 +229,9 @@ namespace mir {
 		{}
 	};
 
+	extern ExternalFunction tensor_error; // FUTURE handle overloads
+	extern ExternalFunction tuple_error;
+
 	struct Program {
 		Vec<Uptr<FunctionDef>> function_defs;
 		Vec<Uptr<ExternalFunction>> external_functions;

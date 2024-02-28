@@ -3,6 +3,9 @@
 #include <algorithm>
 
 namespace mir {
+	ExternalFunction tensor_error("tensor-error", -1);
+	ExternalFunction tuple_error("tuple-error", 3);
+
 	std::string Type::to_ir_syntax() const {
 		const Variant *x = &this->type;
 		if (std::get_if<VoidType>(x)) {

@@ -46,8 +46,17 @@ namespace La::hir_to_mir {
 		{
 			compiler_additions.line_number = this->make_local_var_int64("linenum");
 			compiler_additions.temp_condition = this->make_local_var_int64("booooool");
+
 			compiler_additions.unalloced_error = this->create_basic_block(false, "unallocederror");
-			// TODO add the actual error reporting instructions
+			Vec<Uptr<mir::Operand>> unalloced_error_args;
+			unalloced_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
+			compiler_additions.unalloced_error->instructions.push_back(mkuptr<mir::Instruction>(
+				Opt<Uptr<mir::Place>>(),
+				mkuptr<mir::FunctionCall>(
+					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
+					mv(unalloced_error_args)
+				)
+			));
 		}
 
 		void visit(hir::InstructionDeclaration &inst) override {
