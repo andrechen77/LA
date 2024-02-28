@@ -12,11 +12,12 @@ namespace La::hir_to_mir {
 		Map<hir::Variable *, mir::LocalVar *> &var_map;
 		Map<std::string, mir::BasicBlock *> block_map;
 
-		// local variables used for compiler purposes such as array checking
-		struct UtilLocalVars {
+		// local variables and blocks used for compiler purposes such as array checking
+		struct CompilerAdditions {
 			mir::LocalVar *temp_condition; // used to store the value of a really short-lived boolean condition
 			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes
-		} util_locals;
+			mir::BasicBlock *unalloced_error; // used to report use of an unallocated tensor
+		} compiler_additions;
 
 		// null if the previous BasicBlock already has a terminator or there are no BasicBlocks yet
 		mir::BasicBlock *active_basic_block_nullable;
@@ -40,11 +41,13 @@ namespace La::hir_to_mir {
 			func_map { func_map },
 			var_map { var_map },
 			block_map {},
-			util_locals { /* initialize in body */ },
+			compiler_additions { /* initialize in body */ },
 			active_basic_block_nullable { nullptr }
 		{
-			util_locals.line_number = this->make_local_var_int64("linenum");
-			util_locals.temp_condition = this->make_local_var_int64("booooool");
+			compiler_additions.line_number = this->make_local_var_int64("linenum");
+			compiler_additions.temp_condition = this->make_local_var_int64("booooool");
+			compiler_additions.unalloced_error = this->create_basic_block(false, "unallocederror");
+			// TODO add the actual error reporting instructions
 		}
 
 		void visit(hir::InstructionDeclaration &inst) override {
@@ -68,7 +71,7 @@ namespace La::hir_to_mir {
 		void visit(hir::InstructionLabel &inst) override {
 			// must start a new basic block
 			mir::BasicBlock *old_block = this->active_basic_block_nullable;
-			this->enter_basic_block(inst.label_name);
+			this->enter_basic_block(true, inst.label_name);
 
 			if (old_block) {
 				// the old block falls through
@@ -117,36 +120,49 @@ namespace La::hir_to_mir {
 
 		// empty label name if anonymous block
 		// sets the new basic block to be the current basic block
-		void enter_basic_block(std::string_view label_name) {
-			if (label_name.size() > 0) {
+		void enter_basic_block(bool user_labeled, std::string_view label_name) {
+			if (user_labeled) {
 				this->active_basic_block_nullable = this->get_basic_block_by_name(label_name);
 			} else {
-				this->active_basic_block_nullable = this->create_basic_block("");
+				this->active_basic_block_nullable = this->create_basic_block(false, label_name);
 			}
 		}
 		// makes sure that there is an active basic_block
 		// should be called right before adding an instruction
 		void ensure_active_basic_block() {
 			if (!this->active_basic_block_nullable) {
-				this->enter_basic_block("");
+				this->enter_basic_block(false, "");
 			}
 		}
+		// inserts a branch instruction to the specified basic block if
+		// the temp_condition variable is 1, or falls through if it is not
+		void branch_to_block(mir::BasicBlock *jmp_dst) {
+			mir::BasicBlock *old_block = this->active_basic_block_nullable;
+			assert(old_block != nullptr);
+			mir::BasicBlock *new_block = this->create_basic_block(false, "");
+			old_block->terminator = mir::BasicBlock::Branch {
+				mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+				jmp_dst,
+				new_block
+			};
+			this->active_basic_block_nullable = new_block;
+		}
 		// will create a basic block if it doesn't already exist
+		// this must be the user-defined label name
 		mir::BasicBlock *get_basic_block_by_name(std::string_view label_name) {
 			assert(label_name.length() > 0);
 			auto it = this->block_map.find(label_name);
 			if (it == this->block_map.end()) {
-				return this->create_basic_block(label_name);
+				return this->create_basic_block(true, label_name);
 			} else {
 				return it->second;
 			}
 		}
-		// empty label name if anonymous
-		mir::BasicBlock *create_basic_block(std::string_view label_name) {
-			Uptr<mir::BasicBlock> block = mkuptr<mir::BasicBlock>(std::string(label_name));
+		mir::BasicBlock *create_basic_block(bool user_labeled, std::string_view label_name) {
+			Uptr<mir::BasicBlock> block = mkuptr<mir::BasicBlock>(user_labeled, std::string(label_name));
 			mir::BasicBlock *block_ptr = block.get();
 			this->mir_function.basic_blocks.push_back(mv(block));
-			if (label_name.size() > 0) {
+			if (user_labeled) {
 				// add the basic block to the mapping for label names
 				auto [_, entry_is_new] = this->block_map.insert_or_assign(std::string(label_name), block_ptr);
 				if (!entry_is_new) {
@@ -276,6 +292,23 @@ namespace La::hir_to_mir {
 			hir::Variable *hir_var = dynamic_cast<hir::Variable *>(item_ref.get_referent().value());
 			assert(hir_var != nullptr);
 			mir::LocalVar *mir_var = this->var_map.at(hir_var);
+
+			if (indexing_expr.indices.size() > 0) {
+				// store the line number in case it's an error
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.line_number),
+					mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line))
+				);
+				this->add_inst(
+					mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+					mkuptr<mir::BinaryOperation>(
+						mkuptr<mir::Place>(mir_var),
+						mkuptr<mir::Int64Constant>(0), // ideally would just be the default value of the array type but we don't have type checking
+						mir::Operator::eq
+					)
+				);
+				this->branch_to_block(this->compiler_additions.unalloced_error);
+			}
 
 			Vec<Uptr<mir::Operand>> mir_indices;
 			for (const Uptr<hir::Expr> &hir_index : indexing_expr.indices) {

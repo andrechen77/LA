@@ -150,7 +150,7 @@ namespace mir {
 		} else if (const ReturnVal *term = std::get_if<ReturnVal>(&this->terminator)) {
 			result += "\treturn " + term->return_value->to_ir_syntax() + "\n";
 		} else if (const Goto *term = std::get_if<Goto>(&this->terminator)) {
-			result += "\tbr :" + term->successor->user_given_label_name + "\n";
+			result += "\tbr :" + term->successor->get_unambiguous_name() + "\n";
 		} else if (const Branch *term = std::get_if<Branch>(&this->terminator)) {
 			result += "\tbr "
 				+ term->condition->to_ir_syntax()
@@ -165,7 +165,13 @@ namespace mir {
 		return result;
 	}
 	std::string BasicBlock::get_unambiguous_name() const {
-		return "block_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->user_given_label_name;
+		if (this->user_labeled) {
+			return "userblock_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->label_name;
+		} else if (this->label_name.size() > 0) {
+			return this->label_name;
+		} else {
+			return "block_" + std::to_string(reinterpret_cast<uintptr_t>(this));
+		}
 	}
 
 	std::string FunctionDef::to_ir_syntax() const {

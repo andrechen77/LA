@@ -60,6 +60,7 @@ namespace mir {
 		LocalVar *target;
 		Vec<Uptr<Operand>> indices;
 
+		Place(LocalVar *target) : target { target }, indices {} {}
 		Place(LocalVar *target, Vec<Uptr<Operand>> indices) :
 			target { target }, indices { mv(indices) }
 		{}
@@ -187,12 +188,14 @@ namespace mir {
 		using Terminator = std::variant<ReturnVoid, ReturnVal, Goto, Branch>;
 
 		// data fields start here
-		std::string user_given_label_name; // empty if anonymous
+		bool user_labeled; // whether the block was given a label by the user
+		std::string label_name;
 		Vec<Uptr<Instruction>> instructions;
 		Terminator terminator;
 
-		BasicBlock(std::string user_given_label_name) :
-			user_given_label_name { mv(user_given_label_name) },
+		BasicBlock(bool user_labeled, std::string label_name) :
+			user_labeled { user_labeled },
+			label_name { mv(label_name) },
 			instructions {},
 			terminator { ReturnVoid {} }
 		{}
