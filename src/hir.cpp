@@ -22,27 +22,21 @@ namespace La::hir {
 		return std::to_string(this->value);
 	}
 
-	Operator str_to_op(std::string_view str) {
-		static const Map<std::string, Operator> map {
-			{ "<", Operator::lt },
-			{ "<=", Operator::le },
-			{ "=", Operator::eq },
-			{ ">=", Operator::ge },
-			{ ">", Operator::gt },
-			{ "+", Operator::plus },
-			{ "-", Operator::minus },
-			{ "*", Operator::times },
-			{ "&", Operator::bitwise_and },
-			{ "<<", Operator::lshift },
-			{ ">>", Operator::rshift }
+	mir::Operator str_to_op(std::string_view str) {
+		static const Map<std::string, mir::Operator> map {
+			{ "<", mir::Operator::lt },
+			{ "<=", mir::Operator::le },
+			{ "=", mir::Operator::eq },
+			{ ">=", mir::Operator::ge },
+			{ ">", mir::Operator::gt },
+			{ "+", mir::Operator::plus },
+			{ "-", mir::Operator::minus },
+			{ "*", mir::Operator::times },
+			{ "&", mir::Operator::bitwise_and },
+			{ "<<", mir::Operator::lshift },
+			{ ">>", mir::Operator::rshift }
 		};
 		return map.find(str)->second;
-	}
-	std::string to_string(Operator op) {
-		static const std::string map[] = {
-			"<", "<=", "=", ">=", ">", "+", "-", "*", "&", "<<", ">>"
-		};
-		return map[static_cast<int>(op)];
 	}
 
 	void BinaryOperation::bind_to_scope(Scope<Nameable> &scope) {
@@ -51,7 +45,7 @@ namespace La::hir {
 	}
 	std::string BinaryOperation::to_string() const {
 		return this->lhs->to_string()
-			+ " " + hir::to_string(this->op)
+			+ " " + mir::to_string(this->op)
 			+ " " + this->rhs->to_string();
 	}
 

@@ -93,6 +93,7 @@ namespace mir {
 		lshift,
 		rshift
 	};
+	std::string to_string(Operator op);
 
 	struct BinaryOperation : Rvalue {
 		Uptr<Operand> lhs;

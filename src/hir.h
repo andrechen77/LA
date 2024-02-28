@@ -13,7 +13,8 @@
 // low-level as the MIR. The HIR maps more to language constructs (expressions,
 // statements, etc) and thus can contain information about the source code of
 // the program (i.e. line numbers where expression appears) and is not a totally
-// abstract representation of the program. It does, however, refer to mir::Type.
+// abstract representation of the program. It does, however, refer to mir::Type
+// and mir::Operator
 namespace La::hir {
 	using namespace std_alias;
 	namespace pegtl = TAO_PEGTL_NAMESPACE;
@@ -73,28 +74,14 @@ namespace La::hir {
 		std::string to_string() const override;
 	};
 
-	enum struct Operator {
-		lt,
-		le,
-		eq,
-		ge,
-		gt,
-		plus,
-		minus,
-		times,
-		bitwise_and,
-		lshift,
-		rshift
-	};
-	Operator str_to_op(std::string_view str);
-	std::string to_string(Operator op);
+	mir::Operator str_to_op(std::string_view str);
 
 	struct BinaryOperation : Expr {
 		Uptr<Expr> lhs;
 		Uptr<Expr> rhs;
-		Operator op;
+		mir::Operator op;
 
-		BinaryOperation(Uptr<Expr> lhs, Uptr<Expr> rhs, Operator op) :
+		BinaryOperation(Uptr<Expr> lhs, Uptr<Expr> rhs, mir::Operator op) :
 			lhs { mv(lhs) }, rhs { mv(rhs) }, op { op }
 		{}
 

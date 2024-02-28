@@ -49,6 +49,13 @@ namespace mir {
 		return "@" + this->value->get_unambiguous_name();
 	}
 
+	std::string to_string(Operator op) {
+		static const std::string map[] = {
+			"<", "<=", "=", ">=", ">", "+", "-", "*", "&", "<<", ">>"
+		};
+		return map[static_cast<int>(op)];
+	}
+
 	std::string Instruction::to_ir_syntax() const {
 		// TODO fill out
 		return "mir::Instruction here";
