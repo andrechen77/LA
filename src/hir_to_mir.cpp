@@ -339,14 +339,38 @@ namespace La::hir_to_mir {
 		Uptr<mir::Rvalue> evaluate_function_call(const hir::FunctionCall &call) {
 			// FUTURE could add a check for if the callee is 0
 
+			Uptr<mir::Operand> callee_operand = this->evaluate_expr(call.callee);
+			// because an external function can only be used as a direct callee
+			// (i.e. can't be stored in a variable and indirectly called), we
+			// only need to check here to see if we're calling an std function
+			// that needs encoding/decoding
+			bool requires_encoding_and_decoding = false;
+			if (mir::ExtCodeConstant *ext_code = dynamic_cast<mir::ExtCodeConstant *>(callee_operand.get())) {
+				requires_encoding_and_decoding = true;
+			}
+
 			Vec<Uptr<mir::Operand>> arguments;
 			for (const Uptr<hir::Expr> &hir_arg : call.arguments) {
-				arguments.push_back(this->evaluate_expr(hir_arg));
+				Uptr<mir::Operand> arg_operand = this->evaluate_expr(hir_arg);
+				if (requires_encoding_and_decoding) {
+					arg_operand = this->encode(mv(arg_operand));
+				}
+				arguments.push_back(mv(arg_operand));
 			}
-			return mkuptr<mir::FunctionCall>(
-				this->evaluate_expr(call.callee),
+
+			Uptr<mir::Rvalue> result = mkuptr<mir::FunctionCall>(
+				mv(callee_operand),
 				mv(arguments)
 			);
+			if (requires_encoding_and_decoding) {
+				mir::LocalVar *temp_var = this->make_local_var_int64("");
+				this->add_inst(
+					mkuptr<mir::Place>(temp_var),
+					mv(result)
+				);
+				result = this->decode(mkuptr<mir::Place>(temp_var));
+			}
+			return result;
 		}
 
 		Uptr<mir::Place> evaluate_indexing_expr(const hir::IndexingExpr &indexing_expr) {
@@ -463,33 +487,46 @@ namespace La::hir_to_mir {
 				num->value = num->value * 2 + 1;
 				return operand;
 			} else if (mir::Place *place = dynamic_cast<mir::Place *>(operand.get())) {
-				// assume that it is an int64
+				// LA does not allow complex indexing expressions here
 				assert(place->indices.size() == 0);
-				const mir::Type::ArrayType &arr_type = std::get<mir::Type::ArrayType>(place->target->type.type);
-				assert(arr_type.num_dimensions == 0);
 
-				// %TEMP_VAR <- %OPERAND << 1
-				mir::LocalVar *temp_var = this->make_local_var_int64("");
-				this->add_inst(
-					mkuptr<mir::Place>(temp_var),
-					mkuptr<mir::BinaryOperation>(
-						mkuptr<mir::Place>(place->target),
-						mkuptr<mir::Int64Constant>(1),
-						mir::Operator::lshift
-					)
-				);
-				// %TEMP_VAR <- %TEMP_VAR + 1
-				this->add_inst(
-					mkuptr<mir::Place>(temp_var),
-					mkuptr<mir::BinaryOperation>(
-						mkuptr<mir::Place>(temp_var),
-						mkuptr<mir::Int64Constant>(1),
-						mir::Operator::plus
-					)
-				);
+				if (const mir::Type::ArrayType *arr_type = std::get_if<mir::Type::ArrayType>(&place->target->type.type)) {
+					if (arr_type->num_dimensions > 0) {
+						// encoding an array is a no-op
+						return operand;
+					} else {
+						// encode an int64 by bit-shifting
 
-				// %TEMP_VAR holds our encoded value
-				return mkuptr<mir::Place>(temp_var);
+						// %TEMP_VAR <- %OPERAND << 1
+						mir::LocalVar *temp_var = this->make_local_var_int64("");
+						this->add_inst(
+							mkuptr<mir::Place>(temp_var),
+							mkuptr<mir::BinaryOperation>(
+								mkuptr<mir::Place>(place->target),
+								mkuptr<mir::Int64Constant>(1),
+								mir::Operator::lshift
+							)
+						);
+						// %TEMP_VAR <- %TEMP_VAR + 1
+						this->add_inst(
+							mkuptr<mir::Place>(temp_var),
+							mkuptr<mir::BinaryOperation>(
+								mkuptr<mir::Place>(temp_var),
+								mkuptr<mir::Int64Constant>(1),
+								mir::Operator::plus
+							)
+						);
+
+						// %TEMP_VAR holds our encoded value
+						return mkuptr<mir::Place>(temp_var);
+					}
+				} else if (std::get_if<mir::Type::TupleType>(&place->target->type.type)) {
+					// encoding a tuple is a no-op
+					return operand;
+				} else {
+					std::cerr << "Logic error: can't encode this operand.\n";
+					exit(1);
+				}
 			} else {
 				std::cerr << "Logic error: can't encode this operand.\n";
 				exit(1);

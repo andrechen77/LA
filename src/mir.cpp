@@ -180,7 +180,7 @@ namespace mir {
 	}
 
 	std::string FunctionDef::to_ir_syntax() const {
-		std::string result = this->return_type.to_ir_syntax() + " " + this->user_given_name + "(";
+		std::string result = this->return_type.to_ir_syntax() + " @" + this->get_unambiguous_name() + "(";
 		for (const LocalVar *parameter_var : this->parameter_vars) {
 			result += parameter_var->get_declaration() + ", ";
 		}
