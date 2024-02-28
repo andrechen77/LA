@@ -2,6 +2,7 @@
 
 #include "std_alias.h"
 #include <charconv>
+#include <assert.h>
 
 namespace utils {
     using namespace std_alias;
@@ -41,5 +42,15 @@ namespace utils {
 			result += to_string(element);
 		}
         return result;
+    }
+
+    template<typename B, typename D>
+    Uptr<D> downcast_uptr(Uptr<B> base_ptr) {
+        D *raw = dynamic_cast<D *>(base_ptr.get());
+        assert(raw != nullptr);
+        Uptr<D> derived_ptr;
+        base_ptr.release();
+        derived_ptr.reset(raw);
+        return derived_ptr;
     }
 }

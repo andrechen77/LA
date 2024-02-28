@@ -1,5 +1,6 @@
 #include "hir_to_mir.h"
 #include "std_alias.h"
+#include "utils.h"
 #include <assert.h>
 
 namespace La::hir_to_mir {
@@ -165,9 +166,11 @@ namespace La::hir_to_mir {
 		void visit(hir::InstructionAssignment &inst) override {
 			this->ensure_active_basic_block();
 			if (inst.maybe_dest.has_value()) {
+				Uptr<mir::Operand> dest_operand = this->evaluate_indexing_expr(*inst.maybe_dest.value());
+				Uptr<mir::Place> dest_place = utils::downcast_uptr<mir::Operand, mir::Place>(mv(dest_operand));
 				this->evaluate_expr_into_existing_place(
 					inst.source,
-					this->evaluate_indexing_expr(*inst.maybe_dest.value())
+					mv(dest_place)
 				);
 			} else {
 				this->evaluate_expr_into_existing_place(
@@ -429,113 +432,121 @@ namespace La::hir_to_mir {
 			return result;
 		}
 
-		Uptr<mir::Place> evaluate_indexing_expr(const hir::IndexingExpr &indexing_expr) {
+		Uptr<mir::Operand> evaluate_indexing_expr(const hir::IndexingExpr &indexing_expr) {
 			// FUTURE even though the HIR allows it, the LA language allows us
-			// to safely assume that the target of an indexing expression just
-			// refers to a local variable
+			// to safely assume that the target of an indexing expression either
+			// refers to a local variable or a function
 			const hir::ItemRef<hir::Nameable> &item_ref = dynamic_cast<const hir::ItemRef<hir::Nameable> &>(*indexing_expr.target);
 			if (!item_ref.get_referent().has_value()) {
 				std::cerr << "Compiler error: unbound name `" + item_ref.get_ref_name() + "`\n";
 				exit(1);
 			}
-			hir::Variable *hir_var = dynamic_cast<hir::Variable *>(item_ref.get_referent().value());
-			assert(hir_var != nullptr);
-			mir::LocalVar *mir_var = this->var_map.at(hir_var);
 
-			if (indexing_expr.indices.size() > 0) {
-				// check that the array was allocated
-				// %linenum <- LINE_NUM
-				this->add_inst(
-					mkuptr<mir::Place>(this->get_compiler_addition_line_number()),
-					this->encode(mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line)))
-				);
-				// %booooool <- %TARGET = 0
-				this->add_inst(
-					mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
-					mkuptr<mir::BinaryOperation>(
-						mkuptr<mir::Place>(mir_var),
-						mkuptr<mir::Int64Constant>(0), // ideally would just be the default value of the array type but we don't have type checking
-						mir::Operator::eq
-					)
-				);
-				// br %booooool :unallocederror :CONTINUE
-				this->branch_to_block(this->get_compiler_addition_unalloced_error());
-			}
+			hir::Nameable *hir_name = item_ref.get_referent().value();
+			if (hir::Variable *hir_var = dynamic_cast<hir::Variable *>(hir_name)) {
+				mir::LocalVar *mir_var = this->var_map.at(hir_var);
 
-
-			Vec<Uptr<mir::Operand>> mir_indices;
-			if (indexing_expr.indices.size() > 0) {
-				bool is_tuple = std::holds_alternative<mir::Type::TupleType>(mir_var->type.type);
-				mir::BasicBlock *error_reporter;
-				bool is_multi_dim = false;
-				if (is_tuple) {
-					error_reporter = this->get_compiler_addition_out_of_range_tuple_error();
-				} else if (indexing_expr.indices.size() == 1) {
-					error_reporter = this->get_compiler_addition_out_of_range_one_dim_error();
-				} else {
-					// must be a multi-dimensional tensor
-					error_reporter = this->get_compiler_addition_out_of_range_multi_dim_error();
-					is_multi_dim = true;
-				}
-
-				for (int dim_num = 0; dim_num < indexing_expr.indices.size(); ++dim_num) {
-					assert(!is_tuple || dim_num == 0);
-					const Uptr<hir::Expr> &hir_index = indexing_expr.indices[dim_num];
-
-					Uptr<mir::Operand> mir_index = this->evaluate_expr(hir_index);
-					Uptr<mir::Operand> mir_index_clone0 = this->evaluate_expr(hir_index); // FUTURE rn we just use this for a quick and dirty clone, which works because all expressions in an index position in LA are simple
-
-					// %errorindex <- %INDEX
+				if (indexing_expr.indices.size() > 0) {
+					// check that the array was allocated
+					// %linenum <- LINE_NUM
 					this->add_inst(
-						mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-						this->encode(mv(mir_index_clone0))
+						mkuptr<mir::Place>(this->get_compiler_addition_line_number()),
+						this->encode(mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line)))
 					);
-					// %booooool <- %errorindex < 1; compare with 1 instead of 0 because encoded(0) == 1
+					// %booooool <- %TARGET = 0
 					this->add_inst(
 						mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 						mkuptr<mir::BinaryOperation>(
-							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-							mkuptr<mir::Int64Constant>(1),
-							mir::Operator::lt
-						)
-					);
-					// br %booooool :ERROR_REPORTER :CONTINUE
-					this->branch_to_block(error_reporter);
-					if (is_multi_dim) {
-						// %errordim <- DIM_NUM
-						this->add_inst(
-							mkuptr<mir::Place>(this->get_compiler_addition_error_dim()),
-							mkuptr<mir::Int64Constant>(dim_num)
-						);
-					}
-					// %errorlength <- length %TARGET DIM_NUM
-					this->add_inst(
-						mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
-						mkuptr<mir::LengthGetter>(
 							mkuptr<mir::Place>(mir_var),
-							is_tuple ? Opt<Uptr<mir::Operand>>() : mkuptr<mir::Int64Constant>(dim_num)
+							mkuptr<mir::Int64Constant>(0), // ideally would just be the default value of the array type but we don't have type checking
+							mir::Operator::eq
 						)
 					);
-					// %booooool <- %errorindex >= %errorlength
-					this->add_inst(
-						mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
-						mkuptr<mir::BinaryOperation>(
-							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
-							mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
-							mir::Operator::ge
-						)
-					);
-					// br %booooool :ERROR_REPORTER :CONTINUE
-					this->branch_to_block(error_reporter);
-
-					mir_indices.push_back(mv(mir_index));
+					// br %booooool :unallocederror :CONTINUE
+					this->branch_to_block(this->get_compiler_addition_unalloced_error());
 				}
-			}
 
-			return mkuptr<mir::Place>(
-				mir_var,
-				mv(mir_indices)
-			);
+
+				Vec<Uptr<mir::Operand>> mir_indices;
+				if (indexing_expr.indices.size() > 0) {
+					bool is_tuple = std::holds_alternative<mir::Type::TupleType>(mir_var->type.type);
+					mir::BasicBlock *error_reporter;
+					bool is_multi_dim = false;
+					if (is_tuple) {
+						error_reporter = this->get_compiler_addition_out_of_range_tuple_error();
+					} else if (indexing_expr.indices.size() == 1) {
+						error_reporter = this->get_compiler_addition_out_of_range_one_dim_error();
+					} else {
+						// must be a multi-dimensional tensor
+						error_reporter = this->get_compiler_addition_out_of_range_multi_dim_error();
+						is_multi_dim = true;
+					}
+
+					for (int dim_num = 0; dim_num < indexing_expr.indices.size(); ++dim_num) {
+						assert(!is_tuple || dim_num == 0);
+						const Uptr<hir::Expr> &hir_index = indexing_expr.indices[dim_num];
+
+						Uptr<mir::Operand> mir_index = this->evaluate_expr(hir_index);
+						Uptr<mir::Operand> mir_index_clone0 = this->evaluate_expr(hir_index); // FUTURE rn we just use this for a quick and dirty clone, which works because all expressions in an index position in LA are simple
+
+						// %errorindex <- %INDEX
+						this->add_inst(
+							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
+							this->encode(mv(mir_index_clone0))
+						);
+						// %booooool <- %errorindex < 1; compare with 1 instead of 0 because encoded(0) == 1
+						this->add_inst(
+							mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
+							mkuptr<mir::BinaryOperation>(
+								mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
+								mkuptr<mir::Int64Constant>(1),
+								mir::Operator::lt
+							)
+						);
+						// br %booooool :ERROR_REPORTER :CONTINUE
+						this->branch_to_block(error_reporter);
+						if (is_multi_dim) {
+							// %errordim <- DIM_NUM
+							this->add_inst(
+								mkuptr<mir::Place>(this->get_compiler_addition_error_dim()),
+								mkuptr<mir::Int64Constant>(dim_num)
+							);
+						}
+						// %errorlength <- length %TARGET DIM_NUM
+						this->add_inst(
+							mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
+							mkuptr<mir::LengthGetter>(
+								mkuptr<mir::Place>(mir_var),
+								is_tuple ? Opt<Uptr<mir::Operand>>() : mkuptr<mir::Int64Constant>(dim_num)
+							)
+						);
+						// %booooool <- %errorindex >= %errorlength
+						this->add_inst(
+							mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
+							mkuptr<mir::BinaryOperation>(
+								mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
+								mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
+								mir::Operator::ge
+							)
+						);
+						// br %booooool :ERROR_REPORTER :CONTINUE
+						this->branch_to_block(error_reporter);
+
+						mir_indices.push_back(mv(mir_index));
+					}
+				}
+
+				return mkuptr<mir::Place>(
+					mir_var,
+					mv(mir_indices)
+				);
+			} else if (hir::LaFunction *hir_func = dynamic_cast<hir::LaFunction *>(hir_name)) {
+				mir::FunctionDef *mir_func = this->func_map.at(hir_func);
+				return mkuptr<mir::CodeConstant>(mir_func);
+			} else {
+				std::cerr << "Logic error: can't convert this indexing expression to a place (probably because we don't yet support assigning std functions to variables)\n";
+				exit(1);
+			}
 		}
 
 		Uptr<mir::Operand> encode(Uptr<mir::Operand> operand) {
