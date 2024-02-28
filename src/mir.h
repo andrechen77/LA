@@ -12,6 +12,8 @@
 namespace mir {
 	using namespace std_alias;
 
+	struct Operand;
+
 	struct Type {
 		struct VoidType {};
 		struct ArrayType { int num_dimensions; };
@@ -21,6 +23,7 @@ namespace mir {
 		Variant type;
 
 		std::string to_ir_syntax() const;
+		Uptr<Operand> get_default_value() const; // the value to initialize the variable to
 	};
 
 	// any function-local location in memory, including user-defined local
@@ -36,6 +39,7 @@ namespace mir {
 		std::string to_ir_syntax() const;
 		std::string get_unambiguous_name() const;
 		std::string get_declaration() const;
+		std::string get_initialization() const;
 	};
 
 	// a value that can be used as the right-hand side of an
@@ -192,7 +196,7 @@ namespace mir {
 			terminator { ReturnVoid {} }
 		{}
 
-		std::string to_ir_syntax() const;
+		std::string to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_initialize) const;
 		std::string get_unambiguous_name() const;
 	};
 

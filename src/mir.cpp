@@ -22,15 +22,34 @@ namespace mir {
 			exit(1);
 		}
 	}
+	Uptr<Operand> Type::get_default_value() const {
+		const Variant *x = &this->type;
+		if (std::get_if<VoidType>(x)) {
+			std::cerr << "Logic error: void has no default value\n";
+			exit(1);
+		} else if (const ArrayType *array_type = std::get_if<ArrayType>(x)) {
+			return mkuptr<Int64Constant>(0);
+		} else if (std::get_if<TupleType>(x)) {
+			return mkuptr<Int64Constant>(0);
+		} else if (std::get_if<CodeType>(x)) {
+			return mkuptr<Int64Constant>(0);
+		} else {
+			std::cerr << "Logic error: inexhaustive Type variant\n";
+			exit(1);
+		}
+	}
 
 	std::string LocalVar::to_ir_syntax() const {
 		return "%" + this->get_unambiguous_name();
 	}
 	std::string LocalVar::get_unambiguous_name() const {
-		return "var_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->user_given_name;
+		return /* "var_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + */ this->user_given_name;
 	}
 	std::string LocalVar::get_declaration() const {
 		return this->type.to_ir_syntax() + " " + this->to_ir_syntax();
+	}
+	std::string LocalVar::get_initialization() const {
+		return this->to_ir_syntax() + " <- " + this->type.get_default_value()->to_ir_syntax();
 	}
 
 	std::string Place::to_ir_syntax() const {
@@ -105,9 +124,19 @@ namespace mir {
 		return "new Tuple(" + this->length->to_ir_syntax() + ")";
 	}
 
-	std::string BasicBlock::to_ir_syntax() const {
-		std::string result;
-		result += "\t:" + this->get_unambiguous_name() + "\n";
+	std::string BasicBlock::to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_initialize) const {
+		std::string result = "\t:" + this->get_unambiguous_name() + "\n";
+
+		if (vars_to_initialize.has_value()) {
+			for (LocalVar *local_var : vars_to_initialize.value()) {
+				result += "\t" + local_var->get_declaration() + "\n";
+				if (local_var->user_given_name.size() > 0) {
+					// is user-declared, must have an initializer
+					result += "\t" + local_var->get_initialization() + "\n";
+				}
+			}
+		}
+
 		for (const Uptr<Instruction> &inst : this->instructions) {
 			result += "\t" + inst->to_ir_syntax() + "\n";
 		}
@@ -142,17 +171,19 @@ namespace mir {
 		}
 		result += ") {\n";
 
-		// output a fake "basic block" just to hold the declarations
-		// TODO just have these declarations be output in the first basic block
-		result += "\t:block_entry\n";
-		for (const Uptr<LocalVar> &local_var : this->local_vars) {
-			if (std::find(this->parameter_vars.begin(), this->parameter_vars.end(), local_var.get()) != this->parameter_vars.end()) continue;
-			result += "\t" + local_var->get_declaration() + "\n";
-		}
-		result += "\tbr :" + this->basic_blocks.at(0)->get_unambiguous_name() + "\n\n";
-
+		bool is_first_block = true;
 		for (const Uptr<BasicBlock> &block : this->basic_blocks) {
-			result += block->to_ir_syntax() + "\n";
+			if (is_first_block) {
+				Vec<LocalVar *> vars_to_initialize;
+				for (const Uptr<LocalVar> &local_var : this->local_vars) {
+					if (std::find(this->parameter_vars.begin(), this->parameter_vars.end(), local_var.get()) != this->parameter_vars.end()) continue;
+					vars_to_initialize.push_back(local_var.get());
+				}
+				result += block->to_ir_syntax(mv(vars_to_initialize)) + "\n";
+				is_first_block = false;
+			} else {
+				result += block->to_ir_syntax({}) + "\n";
+			}
 		}
 		result += "}\n";
 		return result;
