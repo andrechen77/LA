@@ -111,6 +111,10 @@ namespace mir {
 		Uptr<Operand> target;
 		Opt<Uptr<Operand>> dimension;
 
+		LengthGetter(Uptr<Operand> target, Opt<Uptr<Operand>> dimension) :
+			target { mv(target) }, dimension { mv(dimension) }
+		{}
+
 		std::string to_ir_syntax() const override;
 	};
 

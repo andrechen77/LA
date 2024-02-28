@@ -62,6 +62,14 @@ namespace mir {
 			+ this->rhs->to_ir_syntax();
 	}
 
+	std::string LengthGetter::to_ir_syntax() const {
+		std::string result = "length " + this->target->to_ir_syntax();
+		if (this->dimension.has_value()) {
+			result += " " + this->dimension.value()->to_ir_syntax();
+		}
+		return result;
+	}
+
 	std::string Instruction::to_ir_syntax() const {
 		std::string result;
 		if (this->destination.has_value()) {

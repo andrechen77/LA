@@ -139,6 +139,18 @@ namespace La::hir_to_mir {
 						bin_op->op
 					)
 				));
+			} else if (const hir::LengthGetter *length_getter = dynamic_cast<hir::LengthGetter *>(expr.get())) {
+				Opt<Uptr<mir::Operand>> dimension;
+				if (length_getter->dimension.has_value()) {
+					dimension = evaluate_expr(length_getter->dimension.value());
+				}
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					mkuptr<mir::LengthGetter>(
+						evaluate_expr(length_getter->target),
+						mv(dimension)
+					)
+				));
 			} else { // TODO add more cases
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),
