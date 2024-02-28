@@ -217,6 +217,12 @@ namespace La::hir_to_mir {
 			this->active_basic_block_nullable = nullptr;
 		}
 
+		void finish() {
+			if (this->mir_function.basic_blocks.empty()) {
+				this->create_basic_block(false, "");
+			}
+		}
+
 		private:
 
 		mir::LocalVar *make_local_var_int64(std::string debug_name) {
@@ -507,7 +513,7 @@ namespace La::hir_to_mir {
 						mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
 						mkuptr<mir::LengthGetter>(
 							mkuptr<mir::Place>(mir_var),
-							mkuptr<mir::Int64Constant>(dim_num)
+							is_tuple ? Opt<Uptr<mir::Operand>>() : mkuptr<mir::Int64Constant>(dim_num)
 						)
 					);
 					// %booooool <- %errorindex >= %errorlength
@@ -630,6 +636,7 @@ namespace La::hir_to_mir {
 		for (const Uptr<hir::Instruction> &hir_inst : hir_function.instructions) {
 			hir_inst->accept(inst_adder);
 		}
+		inst_adder.finish();
 	}
 
 	Uptr<mir::Program> make_mir_program(const hir::Program &hir_program) {
