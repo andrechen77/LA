@@ -494,6 +494,14 @@ namespace La::hir_to_mir {
 							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
 							this->encode(mv(mir_index_clone0))
 						);
+						// %errorlength <- length %TARGET DIM_NUM
+						this->add_inst(
+							mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
+							mkuptr<mir::LengthGetter>(
+								mkuptr<mir::Place>(mir_var),
+								is_tuple ? Opt<Uptr<mir::Operand>>() : mkuptr<mir::Int64Constant>(dim_num)
+							)
+						);
 						// %booooool <- %errorindex < 1; compare with 1 instead of 0 because encoded(0) == 1
 						this->add_inst(
 							mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
@@ -512,14 +520,6 @@ namespace La::hir_to_mir {
 								mkuptr<mir::Int64Constant>(dim_num)
 							);
 						}
-						// %errorlength <- length %TARGET DIM_NUM
-						this->add_inst(
-							mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
-							mkuptr<mir::LengthGetter>(
-								mkuptr<mir::Place>(mir_var),
-								is_tuple ? Opt<Uptr<mir::Operand>>() : mkuptr<mir::Int64Constant>(dim_num)
-							)
-						);
 						// %booooool <- %errorindex >= %errorlength
 						this->add_inst(
 							mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
