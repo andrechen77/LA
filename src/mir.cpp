@@ -79,6 +79,15 @@ namespace mir {
 		return result;
 	}
 
+	std::string FunctionCall::to_ir_syntax() const {
+		std::string result = this->callee->to_ir_syntax() + "(";
+		for (const Uptr<Operand> &arg : this->arguments) {
+			result += arg->to_ir_syntax() + ", ";
+		}
+		result += ")";
+		return result;
+	}
+
 	std::string BasicBlock::to_ir_syntax() const {
 		std::string result;
 		result += "\t:" + this->get_unambiguous_name() + "\n";

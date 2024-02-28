@@ -21,10 +21,10 @@ void main() {
 	arr[0] <- var
 	mat[0][var][2] <- -10
 	tup[10] <- 0
-	helper(a, b, c)
-	var <- helper(a, b, c)
+	helper(var, arr, mat)
+	var <- helper(var, arr, mat)
 	input()
-	print(c)
+	print(arr)
 	return
 }
 

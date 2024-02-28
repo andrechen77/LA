@@ -122,6 +122,10 @@ namespace mir {
 		Uptr<Operand> callee;
 		Vec<Uptr<Operand>> arguments;
 
+		FunctionCall(Uptr<Operand> callee, Vec<Uptr<Operand>> arguments) :
+			callee { mv(callee) }, arguments { mv(arguments) }
+		{}
+
 		std::string to_ir_syntax() const override;
 	};
 

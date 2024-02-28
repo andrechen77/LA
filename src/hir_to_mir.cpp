@@ -33,10 +33,13 @@ namespace La::hir_to_mir {
 			if (inst.maybe_dest.has_value()) {
 				this->evaluate_expr_into_existing_place(
 					inst.source,
-					evaluate_indexing_expr(*inst.maybe_dest.value())
+					this->evaluate_indexing_expr(*inst.maybe_dest.value())
 				);
 			} else {
-				// TODO do nothing
+				this->evaluate_expr_into_existing_place(
+					inst.source,
+					{}
+				);
 			}
 		}
 		void visit(hir::InstructionLabel &inst) override {
@@ -151,6 +154,18 @@ namespace La::hir_to_mir {
 						mv(dimension)
 					)
 				));
+			} else if (const hir::FunctionCall *call = dynamic_cast<hir::FunctionCall *>(expr.get())) {
+				Vec<Uptr<mir::Operand>> arguments;
+				for (const Uptr<hir::Expr> &hir_arg : call->arguments) {
+					arguments.push_back(this->evaluate_expr(hir_arg));
+				}
+				instructions.push_back(mkuptr<mir::Instruction>(
+					mv(place),
+					mkuptr<mir::FunctionCall>(
+						this->evaluate_expr(call->callee),
+						mv(arguments)
+					)
+				));
 			} else { // TODO add more cases
 				instructions.push_back(mkuptr<mir::Instruction>(
 					mv(place),
@@ -166,6 +181,10 @@ namespace La::hir_to_mir {
 		// see also evaluate_expr_into_existing_place
 		Uptr<mir::Operand> evaluate_expr(const Uptr<hir::Expr> &expr) {
 			if (const hir::ItemRef<hir::Nameable> *item_ref = dynamic_cast<hir::ItemRef<hir::Nameable> *>(expr.get())) {
+				if (!item_ref->get_referent().has_value()) {
+					std::cerr << "Compiler error: unbound name `" + item_ref->get_ref_name() + "`\n";
+					exit(1);
+				}
 				hir::Nameable *referent = item_ref->get_referent().value();
 				if (hir::Variable *hir_var = dynamic_cast<hir::Variable *>(referent)) {
 					mir::LocalVar *mir_var = this->var_map.at(hir_var);
@@ -203,6 +222,10 @@ namespace La::hir_to_mir {
 			// to safely assume that the target of an indexing expression just
 			// refers to a local variable
 			const hir::ItemRef<hir::Nameable> &item_ref = dynamic_cast<const hir::ItemRef<hir::Nameable> &>(*indexing_expr.target);
+			if (!item_ref.get_referent().has_value()) {
+				std::cerr << "Compiler error: unbound name `" + item_ref.get_ref_name() + "`\n";
+				exit(1);
+			}
 			hir::Variable *hir_var = dynamic_cast<hir::Variable *>(item_ref.get_referent().value());
 			assert(hir_var != nullptr);
 			mir::LocalVar *mir_var = this->var_map.at(hir_var);
