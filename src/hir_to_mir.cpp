@@ -7,6 +7,7 @@ namespace La::hir_to_mir {
 
 	class InstructionAdder : public hir::InstructionVisitor {
 		mir::FunctionDef &mir_function;
+		const Map<hir::ExternalFunction *, mir::ExternalFunction *> &ext_func_map;
 		const Map<hir::LaFunction *, mir::FunctionDef *> &func_map;
 		Map<hir::Variable *, mir::LocalVar *> &var_map;
 		Map<std::string, mir::BasicBlock *> block_map;
@@ -16,8 +17,14 @@ namespace La::hir_to_mir {
 
 		public:
 
-		InstructionAdder(mir::FunctionDef &mir_function, const Map<hir::LaFunction *, mir::FunctionDef *> &func_map, Map<hir::Variable *, mir::LocalVar *> &var_map) :
+		InstructionAdder(
+			mir::FunctionDef &mir_function,
+			const Map<hir::ExternalFunction *, mir::ExternalFunction *> &ext_func_map,
+			const Map<hir::LaFunction *, mir::FunctionDef *> &func_map,
+			Map<hir::Variable *, mir::LocalVar *> &var_map
+		) :
 			mir_function { mir_function },
+			ext_func_map { ext_func_map },
 			func_map { func_map },
 			var_map { var_map },
 			block_map {},
@@ -195,8 +202,11 @@ namespace La::hir_to_mir {
 				} else if (hir::LaFunction *hir_func = dynamic_cast<hir::LaFunction *>(referent)) {
 					mir::FunctionDef *mir_func = this->func_map.at(hir_func);
 					return mkuptr<mir::CodeConstant>(mir_func);
+				} else if (hir::ExternalFunction *hir_func = dynamic_cast<hir::ExternalFunction *>(referent)) {
+					mir::ExternalFunction *mir_func = this->ext_func_map.at(hir_func);
+					return mkuptr<mir::ExtCodeConstant>(mir_func);
 				} else {
-					std::cerr << "Logic Error: probably forgot to handle case of hir::ExternalFunction\n";
+					std::cerr << "Logic error: inexhaustive match on subclasses of Nameable\n";
 					exit(1);
 				}
 			} else if (const hir::NumberLiteral *num_lit = dynamic_cast<hir::NumberLiteral *>(expr.get())) {
@@ -247,7 +257,8 @@ namespace La::hir_to_mir {
 	void fill_mir_function(
 		mir::FunctionDef &mir_function,
 		const hir::LaFunction &hir_function,
-		const Map<hir::LaFunction *, mir::FunctionDef *> &func_map
+		const Map<hir::LaFunction *, mir::FunctionDef *> &func_map,
+		const Map<hir::ExternalFunction *, mir::ExternalFunction *> &ext_func_map
 	) {
 		Map<hir::Variable *, mir::LocalVar *> var_map;
 
@@ -265,7 +276,7 @@ namespace La::hir_to_mir {
 		}
 
 		// transfer over each instruction into the basic blocks
-		InstructionAdder inst_adder(mir_function, func_map, var_map);
+		InstructionAdder inst_adder(mir_function, ext_func_map, func_map, var_map);
 		for (const Uptr<hir::Instruction> &hir_inst : hir_function.instructions) {
 			hir_inst->accept(inst_adder);
 		}
@@ -273,6 +284,13 @@ namespace La::hir_to_mir {
 
 	Uptr<mir::Program> make_mir_program(const hir::Program &hir_program) {
 		auto mir_program = mkuptr<mir::Program>();
+
+		Map<hir::ExternalFunction *, mir::ExternalFunction *> ext_func_map;
+		for (const Uptr<hir::ExternalFunction> &hir_ext_func : hir_program.external_functions) {
+			auto mir_ext_func = mkuptr<mir::ExternalFunction>(hir_ext_func->value); // copy initialization
+			ext_func_map.insert_or_assign(hir_ext_func.get(), mir_ext_func.get());
+			mir_program->external_functions.push_back(mv(mir_ext_func));
+		}
 
 		// make two passes through the HIR: first, create all the function
 		// definitions and track how the hir functions are being mapped to
@@ -284,8 +302,9 @@ namespace La::hir_to_mir {
 			func_map.insert_or_assign(hir_function.get(), mir_function.get());
 			mir_program->function_defs.push_back(mv(mir_function));
 		}
+
 		for (const auto [hir_function, mir_function] : func_map) {
-			fill_mir_function(*mir_function, *hir_function, func_map);
+			fill_mir_function(*mir_function, *hir_function, func_map, ext_func_map);
 		}
 
 		return mir_program;

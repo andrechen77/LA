@@ -80,6 +80,16 @@ namespace mir {
 		std::string to_ir_syntax() const override;
 	};
 
+	struct ExternalFunction;
+
+	struct ExtCodeConstant : Operand {
+		ExternalFunction *value;
+
+		ExtCodeConstant(ExternalFunction *value) : value { value } {}
+
+		std::string to_ir_syntax() const override;
+	};
+
 	enum struct Operator {
 		lt,
 		le,
@@ -197,8 +207,19 @@ namespace mir {
 		std::string get_unambiguous_name() const;
 	};
 
+	struct ExternalFunction {
+		std::string name;
+		int num_parameters;
+		// TODO consider adding richer information about the function's signature
+
+		ExternalFunction(std::string name, int num_parameters) :
+			name { mv(name) }, num_parameters { num_parameters }
+		{}
+	};
+
 	struct Program {
 		Vec<Uptr<FunctionDef>> function_defs;
+		Vec<Uptr<ExternalFunction>> external_functions;
 
 		std::string to_ir_syntax() const;
 	};

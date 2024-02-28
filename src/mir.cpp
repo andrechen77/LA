@@ -49,6 +49,10 @@ namespace mir {
 		return "@" + this->value->get_unambiguous_name();
 	}
 
+	std::string ExtCodeConstant::to_ir_syntax() const {
+		return this->value->name;
+	}
+
 	std::string to_string(Operator op) {
 		static const std::string map[] = {
 			"<", "<=", "=", ">=", ">", "+", "-", "*", "&", "<<", ">>"

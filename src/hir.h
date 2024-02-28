@@ -14,7 +14,7 @@
 // statements, etc) and thus can contain information about the source code of
 // the program (i.e. line numbers where expression appears) and is not a totally
 // abstract representation of the program. It does, however, refer to mir::Type
-// and mir::Operator
+// and mir::Operator and mir::ExternalFunction
 namespace La::hir {
 	using namespace std_alias;
 	namespace pegtl = TAO_PEGTL_NAMESPACE;
@@ -454,16 +454,13 @@ namespace La::hir {
 		void add_next_instruction(Uptr<Instruction> inst);
 	};
 
+	// just a wrapper so that it can inherit from Nameable
 	struct ExternalFunction : Nameable {
-		std::string name;
-		int num_parameters;
-		// TODO consider adding richer information about the function's signature
+		mir::ExternalFunction value;
 
-		ExternalFunction(std::string name, int num_parameters) :
-			name { mv(name) }, num_parameters { num_parameters }
-		{}
+		ExternalFunction(std::string name, int num_parameters) : value(mv(name), num_parameters) {}
 
-		const std::string &get_name() const override { return this->name; }
+		const std::string &get_name() const override { return this->value.name; }
 	};
 
 	struct Program {
