@@ -186,7 +186,7 @@ namespace La::hir_to_mir {
 
 			if (old_block) {
 				// the old block falls through
-				assert(std::holds_alternative<mir::BasicBlock::ReturnVoid>(old_block->terminator));
+				// assert(std::holds_alternative<mir::BasicBlock::ReturnVoid>(old_block->terminator));
 				old_block->terminator = mir::BasicBlock::Goto { this->active_basic_block_nullable };
 			}
 		}
@@ -277,6 +277,15 @@ namespace La::hir_to_mir {
 		}
 		mir::BasicBlock *create_basic_block(bool user_labeled, std::string_view label_name) {
 			Uptr<mir::BasicBlock> block = mkuptr<mir::BasicBlock>(user_labeled, std::string(label_name));
+			if (std::holds_alternative<mir::Type::VoidType>(this->mir_function.return_type.type)) {
+				// no return value
+				block->terminator = mir::BasicBlock::ReturnVoid {};
+			} else {
+				// block->terminator = mir::BasicBlock::ReturnVal { this->mir_function.return_type.get_default_value() };
+
+				// ignore the commented code above; do a random ass self-jump bc we have to terminate the block somehow
+				block->terminator = mir::BasicBlock::Goto { block.get() };
+			}
 			mir::BasicBlock *block_ptr = block.get();
 			this->mir_function.basic_blocks.push_back(mv(block));
 			if (user_labeled) {
