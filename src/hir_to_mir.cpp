@@ -13,6 +13,7 @@ namespace La::hir_to_mir {
 		Map<std::string, mir::BasicBlock *> block_map;
 
 		// local variables and blocks used for compiler purposes such as array checking
+		// nullptr if we did not use them
 		struct CompilerAdditions {
 			mir::LocalVar *temp_condition; // used to store the value of a really short-lived boolean condition
 			mir::LocalVar *line_number; // used to store the line number for tensor-error etc. purposes
@@ -33,6 +34,103 @@ namespace La::hir_to_mir {
 				mkuptr<mir::Instruction>(mv(destination), mv(rvalue))
 			);
 		}
+		mir::LocalVar *get_compiler_addition_temp_condition() {
+			if (!this->compiler_additions.temp_condition) {
+				this->compiler_additions.temp_condition = this->make_local_var_int64("tempcond");
+			}
+			return this->compiler_additions.temp_condition;
+		}
+		mir::LocalVar *get_compiler_addition_line_number() {
+			if (!this->compiler_additions.line_number) {
+				this->compiler_additions.line_number = this->make_local_var_int64("linenum");
+			}
+			return this->compiler_additions.line_number;
+		}
+		mir::LocalVar *get_compiler_addition_error_dim() {
+			if (!this->compiler_additions.error_dim) {
+				this->compiler_additions.error_dim = this->make_local_var_int64("errordim");
+			}
+			return this->compiler_additions.error_dim;
+		}
+		mir::LocalVar *get_compiler_addition_error_length() {
+			if (!this->compiler_additions.error_length) {
+				this->compiler_additions.error_length = this->make_local_var_int64("errorlength");
+			}
+			return this->compiler_additions.error_length;
+		}
+		mir::LocalVar *get_compiler_addition_error_index() {
+			if (!this->compiler_additions.error_index) {
+				this->compiler_additions.error_index = this->make_local_var_int64("errorindex");
+			}
+			return this->compiler_additions.error_index;
+		}
+		mir::BasicBlock *get_compiler_addition_unalloced_error() {
+			if (!this->compiler_additions.unalloced_error) {
+				this->compiler_additions.unalloced_error = this->create_basic_block(false, "unallocederror");
+				Vec<Uptr<mir::Operand>> args;
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_line_number()));
+				compiler_additions.unalloced_error->instructions.push_back(mkuptr<mir::Instruction>(
+					Opt<Uptr<mir::Place>>(),
+					mkuptr<mir::FunctionCall>(
+						mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
+						mv(args)
+					)
+				));
+			}
+			return this->compiler_additions.unalloced_error;
+		}
+		mir::BasicBlock *get_compiler_addition_out_of_range_tuple_error() {
+			if (!this->compiler_additions.out_of_range_tuple_error) {
+				this->compiler_additions.out_of_range_tuple_error = this->create_basic_block(false, "outofrangetuple");
+				Vec<Uptr<mir::Operand>> args;
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_line_number()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_length()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_index()));
+				compiler_additions.out_of_range_tuple_error->instructions.push_back(mkuptr<mir::Instruction>(
+					Opt<Uptr<mir::Place>>(),
+					mkuptr<mir::FunctionCall>(
+						mkuptr<mir::ExtCodeConstant>(&mir::tuple_error),
+						mv(args)
+					)
+				));
+			}
+			return this->compiler_additions.out_of_range_tuple_error;
+		}
+		mir::BasicBlock *get_compiler_addition_out_of_range_one_dim_error() {
+			if (!this->compiler_additions.out_of_range_one_dim_error) {
+				this->compiler_additions.out_of_range_one_dim_error = this->create_basic_block(false, "outofrangeonedim");
+				Vec<Uptr<mir::Operand>> args;
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_line_number()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_length()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_index()));
+				compiler_additions.out_of_range_one_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
+					Opt<Uptr<mir::Place>>(),
+					mkuptr<mir::FunctionCall>(
+						mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
+						mv(args)
+					)
+				));
+			}
+			return this->compiler_additions.out_of_range_one_dim_error;
+		}
+		mir::BasicBlock *get_compiler_addition_out_of_range_multi_dim_error() {
+			if (!this->compiler_additions.out_of_range_multi_dim_error) {
+				this->compiler_additions.out_of_range_multi_dim_error = this->create_basic_block(false, "outofrangemultidim");
+				Vec<Uptr<mir::Operand>> args;
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_line_number()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_dim()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_length()));
+				args.push_back(mkuptr<mir::Place>(this->get_compiler_addition_error_index()));
+				compiler_additions.out_of_range_multi_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
+					Opt<Uptr<mir::Place>>(),
+					mkuptr<mir::FunctionCall>(
+						mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
+						mv(args)
+					)
+				));
+			}
+			return this->compiler_additions.out_of_range_multi_dim_error;
+		}
 
 		public:
 
@@ -47,73 +145,25 @@ namespace La::hir_to_mir {
 			func_map { func_map },
 			var_map { var_map },
 			block_map {},
-			compiler_additions { /* initialize in body */ },
+			compiler_additions {
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr,
+				nullptr
+			},
 			active_basic_block_nullable { nullptr }
-		{
-			compiler_additions.line_number = this->make_local_var_int64("linenum");
-			compiler_additions.temp_condition = this->make_local_var_int64("booooool");
-			compiler_additions.error_dim = this->make_local_var_int64("errordim");
-			compiler_additions.error_length = this->make_local_var_int64("errorlength");
-			compiler_additions.error_index = this->make_local_var_int64("errorindex");
-
-			compiler_additions.unalloced_error = this->create_basic_block(false, "unallocederror");
-			Vec<Uptr<mir::Operand>> unalloced_error_args;
-			unalloced_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
-			compiler_additions.unalloced_error->instructions.push_back(mkuptr<mir::Instruction>(
-				Opt<Uptr<mir::Place>>(),
-				mkuptr<mir::FunctionCall>(
-					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
-					mv(unalloced_error_args)
-				)
-			));
-
-			compiler_additions.out_of_range_tuple_error = this->create_basic_block(false, "outofrangetuple");
-			Vec<Uptr<mir::Operand>> out_of_range_tuple_error_args;
-			out_of_range_tuple_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
-			out_of_range_tuple_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_length));
-			out_of_range_tuple_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_index));
-			compiler_additions.out_of_range_tuple_error->instructions.push_back(mkuptr<mir::Instruction>(
-				Opt<Uptr<mir::Place>>(),
-				mkuptr<mir::FunctionCall>(
-					mkuptr<mir::ExtCodeConstant>(&mir::tuple_error),
-					mv(out_of_range_tuple_error_args)
-				)
-			));
-
-			compiler_additions.out_of_range_one_dim_error = this->create_basic_block(false, "outofrangeonedim");
-			Vec<Uptr<mir::Operand>> out_of_range_one_dim_error_args;
-			out_of_range_one_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
-			out_of_range_one_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_length));
-			out_of_range_one_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_index));
-			compiler_additions.out_of_range_one_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
-				Opt<Uptr<mir::Place>>(),
-				mkuptr<mir::FunctionCall>(
-					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
-					mv(out_of_range_one_dim_error_args)
-				)
-			));
-
-			compiler_additions.out_of_range_multi_dim_error = this->create_basic_block(false, "outofrangemultidim");
-			Vec<Uptr<mir::Operand>> out_of_range_multi_dim_error_args;
-			out_of_range_multi_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.line_number));
-			out_of_range_multi_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_dim));
-			out_of_range_multi_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_length));
-			out_of_range_multi_dim_error_args.push_back(mkuptr<mir::Place>(this->compiler_additions.error_index));
-			compiler_additions.out_of_range_multi_dim_error->instructions.push_back(mkuptr<mir::Instruction>(
-				Opt<Uptr<mir::Place>>(),
-				mkuptr<mir::FunctionCall>(
-					mkuptr<mir::ExtCodeConstant>(&mir::tensor_error),
-					mv(out_of_range_multi_dim_error_args)
-				)
-			));
-		}
+		{}
 
 		void visit(hir::InstructionDeclaration &inst) override {
 			// do nothing; variables were already added
 		}
 		void visit(hir::InstructionAssignment &inst) override {
 			this->ensure_active_basic_block();
-			// TODO add decoding and shit
 			if (inst.maybe_dest.has_value()) {
 				this->evaluate_expr_into_existing_place(
 					inst.source,
@@ -199,7 +249,7 @@ namespace La::hir_to_mir {
 			assert(old_block != nullptr);
 			mir::BasicBlock *new_block = this->create_basic_block(false, "");
 			old_block->terminator = mir::BasicBlock::Branch {
-				mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+				mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 				jmp_dst,
 				new_block
 			};
@@ -390,12 +440,12 @@ namespace La::hir_to_mir {
 				// check that the array was allocated
 				// %linenum <- LINE_NUM
 				this->add_inst(
-					mkuptr<mir::Place>(this->compiler_additions.line_number),
+					mkuptr<mir::Place>(this->get_compiler_addition_line_number()),
 					mkuptr<mir::Int64Constant>(static_cast<int64_t>(indexing_expr.src_pos.value().line))
 				);
 				// %booooool <- %TARGET = 0
 				this->add_inst(
-					mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+					mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 					mkuptr<mir::BinaryOperation>(
 						mkuptr<mir::Place>(mir_var),
 						mkuptr<mir::Int64Constant>(0), // ideally would just be the default value of the array type but we don't have type checking
@@ -403,7 +453,7 @@ namespace La::hir_to_mir {
 					)
 				);
 				// br %booooool :unallocederror :CONTINUE
-				this->branch_to_block(this->compiler_additions.unalloced_error);
+				this->branch_to_block(this->get_compiler_addition_unalloced_error());
 			}
 
 
@@ -413,12 +463,12 @@ namespace La::hir_to_mir {
 				mir::BasicBlock *error_reporter;
 				bool is_multi_dim = false;
 				if (is_tuple) {
-					error_reporter = this->compiler_additions.out_of_range_tuple_error;
+					error_reporter = this->get_compiler_addition_out_of_range_tuple_error();
 				} else if (indexing_expr.indices.size() == 1) {
-					error_reporter = this->compiler_additions.out_of_range_one_dim_error;
+					error_reporter = this->get_compiler_addition_out_of_range_one_dim_error();
 				} else {
 					// must be a multi-dimensional tensor
-					error_reporter = this->compiler_additions.out_of_range_multi_dim_error;
+					error_reporter = this->get_compiler_addition_out_of_range_multi_dim_error();
 					is_multi_dim = true;
 				}
 
@@ -431,14 +481,14 @@ namespace La::hir_to_mir {
 
 					// %errorindex <- %INDEX
 					this->add_inst(
-						mkuptr<mir::Place>(this->compiler_additions.error_index),
+						mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
 						mv(mir_index_clone0)
 					);
 					// %booooool <- %errorindex < 0
 					this->add_inst(
-						mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+						mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 						mkuptr<mir::BinaryOperation>(
-							mkuptr<mir::Place>(this->compiler_additions.error_index),
+							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
 							mkuptr<mir::Int64Constant>(0),
 							mir::Operator::lt
 						)
@@ -448,13 +498,13 @@ namespace La::hir_to_mir {
 					if (is_multi_dim) {
 						// %errordim <- DIM_NUM
 						this->add_inst(
-							mkuptr<mir::Place>(this->compiler_additions.error_dim),
+							mkuptr<mir::Place>(this->get_compiler_addition_error_dim()),
 							mkuptr<mir::Int64Constant>(dim_num)
 						);
 					}
 					// %errorlength <- length %TARGET DIM_NUM
 					this->add_inst(
-						mkuptr<mir::Place>(this->compiler_additions.error_length),
+						mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
 						mkuptr<mir::LengthGetter>(
 							mkuptr<mir::Place>(mir_var),
 							mkuptr<mir::Int64Constant>(dim_num)
@@ -462,10 +512,10 @@ namespace La::hir_to_mir {
 					);
 					// %booooool <- %errorindex >= %errorlength
 					this->add_inst(
-						mkuptr<mir::Place>(this->compiler_additions.temp_condition),
+						mkuptr<mir::Place>(this->get_compiler_addition_temp_condition()),
 						mkuptr<mir::BinaryOperation>(
-							mkuptr<mir::Place>(this->compiler_additions.error_index),
-							mkuptr<mir::Place>(this->compiler_additions.error_length),
+							mkuptr<mir::Place>(this->get_compiler_addition_error_index()),
+							mkuptr<mir::Place>(this->get_compiler_addition_error_length()),
 							mir::Operator::ge
 						)
 					);
