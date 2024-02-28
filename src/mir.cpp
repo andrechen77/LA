@@ -1,5 +1,6 @@
 #include "mir.h"
 #include <iostream>
+#include <algorithm>
 
 namespace mir {
 	std::string Type::to_string() const {
@@ -24,6 +25,9 @@ namespace mir {
 
 	std::string LocalVar::get_unambiguous_name() const {
 		return "var_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_" + this->user_given_name;
+	}
+	std::string LocalVar::get_declaration() const {
+		return this->type.to_string() + " " + this->get_unambiguous_name();
 	}
 
 	std::string Place::to_string() const {
@@ -80,14 +84,16 @@ namespace mir {
 	std::string FunctionDef::to_string() const {
 		std::string result = this->return_type.to_string() + " " + this->user_given_name + "(";
 		for (const LocalVar *parameter_var : this->parameter_vars) {
-			result += parameter_var->user_given_name + ", ";
+			result += parameter_var->get_declaration() + ", ";
 		}
 		result += ") {\n";
 
 		// output a fake "basic block" just to hold the declarations
+		// TODO just have these declarations be output in the first basic block
 		result += "\t:block_entry\n";
 		for (const Uptr<LocalVar> &local_var : this->local_vars) {
-			result += "\t" + local_var->type.to_string() + " " + local_var->get_unambiguous_name() + "\n";
+			if (std::find(this->parameter_vars.begin(), this->parameter_vars.end(), local_var.get()) != this->parameter_vars.end()) continue;
+			result += "\t" + local_var->get_declaration() + "\n";
 		}
 		result += "\tbr :" + this->basic_blocks.at(0)->get_unambiguous_name() + "\n\n";
 

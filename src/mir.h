@@ -35,6 +35,7 @@ namespace mir {
 
 		std::string to_string() const;
 		std::string get_unambiguous_name() const;
+		std::string get_declaration() const;
 	};
 
 	// a value that can be used as the right-hand side of an
