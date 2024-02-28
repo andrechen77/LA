@@ -27,4 +27,19 @@ namespace utils {
             return "None";
         }
     }
+
+    template<typename Iterable, typename ToString>
+    std::string format_comma_delineated_list(const Iterable &list, ToString to_string) {
+        std::string result;
+        bool first = true;
+		for (const auto &element : list) {
+			if (first) {
+				first = false;
+			} else {
+				result += ", ";
+			}
+			result += to_string(element);
+		}
+        return result;
+    }
 }

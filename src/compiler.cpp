@@ -68,8 +68,11 @@ int main(
 	);
 
 	if (enable_code_generator) {
-		// TODO
 		auto mir_program = La::hir_to_mir::make_mir_program(*hir_program);
+		std::ofstream o;
+		o.open("prog.IR");
+		o << mir_program->to_ir_syntax();
+		o.close();
 	}
 
 	return 0;

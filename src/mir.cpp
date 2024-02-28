@@ -1,4 +1,5 @@
 #include "mir.h"
+#include "utils.h"
 #include <iostream>
 #include <algorithm>
 
@@ -113,18 +114,20 @@ namespace mir {
 
 	std::string FunctionCall::to_ir_syntax() const {
 		std::string result = "call " + this->callee->to_ir_syntax() + "(";
-		for (const Uptr<Operand> &arg : this->arguments) {
-			result += arg->to_ir_syntax() + ", ";
-		}
+		result += utils::format_comma_delineated_list(
+			this->arguments,
+			[](const Uptr<Operand> &arg){ return arg->to_ir_syntax(); }
+		);
 		result += ")";
 		return result;
 	}
 
 	std::string NewArray::to_ir_syntax() const {
 		std::string result = "new Array(";
-		for (const Uptr<Operand> &arg : this->dimension_lengths) {
-			result += arg->to_ir_syntax() + ", ";
-		}
+		result += utils::format_comma_delineated_list(
+			this->dimension_lengths,
+			[](const Uptr<Operand> &arg){ return arg->to_ir_syntax(); }
+		);
 		result += ")";
 		return result;
 	}
@@ -180,10 +183,11 @@ namespace mir {
 	}
 
 	std::string FunctionDef::to_ir_syntax() const {
-		std::string result = this->return_type.to_ir_syntax() + " @" + this->get_unambiguous_name() + "(";
-		for (const LocalVar *parameter_var : this->parameter_vars) {
-			result += parameter_var->get_declaration() + ", ";
-		}
+		std::string result = "define " + this->return_type.to_ir_syntax() + " @" + this->get_unambiguous_name() + "(";
+		result += utils::format_comma_delineated_list(
+			this->parameter_vars,
+			[](const LocalVar *const &parameter_var){ return parameter_var->get_declaration(); }
+		);
 		result += ") {\n";
 
 		bool is_first_block = true;

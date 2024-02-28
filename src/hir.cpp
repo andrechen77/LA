@@ -1,5 +1,6 @@
 #include "hir.h"
 #include "std_alias.h"
+#include "utils.h"
 
 namespace La::hir {
 	using namespace std_alias;
@@ -85,9 +86,10 @@ namespace La::hir {
 	}
 	std::string FunctionCall::to_string() const {
 		std::string result = this->callee->to_string() + "(";
-		for (const Uptr<Expr> &argument : this->arguments) {
-			result += argument->to_string() + ", ";
-		}
+		result += utils::format_comma_delineated_list(
+			this->arguments,
+			[](const Uptr<Expr> &argument){ return argument->to_string(); }
+		);
 		result += ")";
 		return result;
 	}
@@ -99,9 +101,10 @@ namespace La::hir {
 	}
 	std::string NewArray::to_string() const {
 		std::string result = "new Array(";
-		for (const Uptr<Expr> &dim_length : this->dimension_lengths) {
-			result += dim_length->to_string() + ", ";
-		}
+		result += utils::format_comma_delineated_list(
+			this->dimension_lengths,
+			[](const Uptr<Expr> &dim_length){ return dim_length->to_string(); }
+		);
 		result += ")";
 		return result;
 	}
@@ -170,9 +173,10 @@ namespace La::hir {
 	{}
 	std::string LaFunction::to_string() const {
 		std::string result = this->return_type.to_ir_syntax() + " " + this->name + "(";
-		for (Variable *parameter_var : this->parameter_vars) {
-			result += parameter_var->type.to_ir_syntax() + " " + parameter_var->name + ", ";
-		}
+		result += utils::format_comma_delineated_list(
+			this->parameter_vars,
+			[](Variable *const &parameter_var){ return parameter_var->type.to_ir_syntax() + " " + parameter_var->name; }
+		);
 		result += ") {\n";
 		for (const Uptr<Instruction> &inst : this->instructions) {
 			result += "\t" + inst->to_string() + "\n";
