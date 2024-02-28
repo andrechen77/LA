@@ -1,5 +1,6 @@
 #include "std_alias.h"
 #include "parser.h"
+#include "hir_to_mir.h"
 #include <string>
 #include <vector>
 #include <utility>
@@ -61,13 +62,14 @@ int main(
 	}
 
 	// Parse the input file.
-	Uptr<La::hir::Program> p = La::parser::parse_file(
+	Uptr<La::hir::Program> hir_program = La::parser::parse_file(
 		argv[optind],
 		output_parse_tree ? std::make_optional("parse_tree.dot") : Opt<std::string>()
 	);
 
 	if (enable_code_generator) {
 		// TODO
+		auto mir_program = La::hir_to_mir::make_mir_program(*hir_program);
 	}
 
 	return 0;

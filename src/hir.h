@@ -156,10 +156,29 @@ namespace La::hir {
 		std::string to_string() const override;
 	};
 
+	class InstructionDeclaration;
+	class InstructionAssignment;
+	class InstructionLabel;
+	class InstructionReturn;
+	class InstructionBranchUnconditional;
+	class InstructionBranchConditional;
+
+	// interface
+	class InstructionVisitor {
+		public:
+		virtual void visit(InstructionDeclaration &inst) = 0;
+		virtual void visit(InstructionAssignment &inst) = 0;
+		virtual void visit(InstructionLabel &inst) = 0;
+		virtual void visit(InstructionReturn &inst) = 0;
+		virtual void visit(InstructionBranchUnconditional &inst) = 0;
+		virtual void visit(InstructionBranchConditional &inst) = 0;
+	};
+
 	// interface
 	struct Instruction {
 		virtual void bind_to_scope(Scope<Nameable> &scope) = 0;
 		virtual std::string to_string() const = 0;
+		virtual void accept(InstructionVisitor &v) = 0;
 	};
 
 	struct InstructionDeclaration : Instruction {
@@ -172,6 +191,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	struct InstructionAssignment : Instruction {
@@ -184,6 +204,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	struct InstructionLabel : Instruction {
@@ -193,6 +214,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	struct InstructionReturn : Instruction {
@@ -202,6 +224,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	struct InstructionBranchUnconditional : Instruction {
@@ -211,6 +234,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	struct InstructionBranchConditional : Instruction {
@@ -224,6 +248,7 @@ namespace La::hir {
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
 		std::string to_string() const override;
+		void accept(InstructionVisitor &v) override { v.visit(*this); }
 	};
 
 	// A Scope represents a namespace of Items that the ItemRefs care about.
