@@ -15,6 +15,12 @@ namespace La::hir_to_mir {
 		// null if the previous BasicBlock already has a terminator or there are no BasicBlocks yet
 		mir::BasicBlock *active_basic_block_nullable;
 
+		void add_inst(Opt<Uptr<mir::Place>> destination, Uptr<mir::Rvalue> rvalue) {
+			this->active_basic_block_nullable->instructions.push_back(
+				mkuptr<mir::Instruction>(mv(destination), mv(rvalue))
+			);
+		}
+
 		public:
 
 		InstructionAdder(
@@ -139,59 +145,58 @@ namespace La::hir_to_mir {
 		// (including its side effects)
 		// see also evaluate_expr
 		void evaluate_expr_into_existing_place(const Uptr<hir::Expr> &expr, Opt<Uptr<mir::Place>> place) {
-			Vec<Uptr<mir::Instruction>> &instructions = this->active_basic_block_nullable->instructions;
 			if (const hir::BinaryOperation *bin_op = dynamic_cast<hir::BinaryOperation *>(expr.get())) {
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					mkuptr<mir::BinaryOperation>(
 						this->evaluate_expr(bin_op->lhs),
 						this->evaluate_expr(bin_op->rhs),
 						bin_op->op
 					)
-				));
+				);
 			} else if (const hir::LengthGetter *length_getter = dynamic_cast<hir::LengthGetter *>(expr.get())) {
 				Opt<Uptr<mir::Operand>> dimension;
 				if (length_getter->dimension.has_value()) {
 					dimension = evaluate_expr(length_getter->dimension.value());
 				}
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					mkuptr<mir::LengthGetter>(
 						this->evaluate_expr(length_getter->target),
 						mv(dimension)
 					)
-				));
+				);
 			} else if (const hir::FunctionCall *call = dynamic_cast<hir::FunctionCall *>(expr.get())) {
 				Vec<Uptr<mir::Operand>> arguments;
 				for (const Uptr<hir::Expr> &hir_arg : call->arguments) {
 					arguments.push_back(this->evaluate_expr(hir_arg));
 				}
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					mkuptr<mir::FunctionCall>(
 						this->evaluate_expr(call->callee),
 						mv(arguments)
 					)
-				));
+				);
 			} else if (const hir::NewArray *new_array = dynamic_cast<hir::NewArray *>(expr.get())) {
 				Vec<Uptr<mir::Operand>> dimension_lengths;
 				for (const Uptr<hir::Expr> &hir_dim_len : new_array->dimension_lengths) {
 					dimension_lengths.push_back(this->evaluate_expr(hir_dim_len));
 				}
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					mkuptr<mir::NewArray>(mv(dimension_lengths))
-				));
+				);
 			} else if (const hir::NewTuple *new_tuple = dynamic_cast<hir::NewTuple *>(expr.get())) {
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					mkuptr<mir::NewTuple>(this->evaluate_expr(new_tuple->length))
-				));
+				);
 			} else { // TODO add more cases
-				instructions.push_back(mkuptr<mir::Instruction>(
+				this->add_inst(
 					mv(place),
 					this->evaluate_expr(expr)
-				));
+				);
 			}
 		}
 
