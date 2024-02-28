@@ -121,7 +121,7 @@ namespace La::hir {
 
 	void InstructionDeclaration::bind_to_scope(Scope<Nameable> &scope) {}
 	std::string InstructionDeclaration::to_string() const {
-		return this->type.to_string() + " " + this->variable_name;
+		return this->type.to_ir_syntax() + " " + this->variable_name;
 	}
 
 	void InstructionAssignment::bind_to_scope(Scope<Nameable> &scope) {
@@ -175,9 +175,9 @@ namespace La::hir {
 		name { mv(name) }, return_type { return_type }
 	{}
 	std::string LaFunction::to_string() const {
-		std::string result = this->return_type.to_string() + " " + this->name + "(";
+		std::string result = this->return_type.to_ir_syntax() + " " + this->name + "(";
 		for (Variable *parameter_var : this->parameter_vars) {
-			result += parameter_var->type.to_string() + " " + parameter_var->name + ", ";
+			result += parameter_var->type.to_ir_syntax() + " " + parameter_var->name + ", ";
 		}
 		result += ") {\n";
 		for (const Uptr<Instruction> &inst : this->instructions) {

@@ -20,7 +20,7 @@ namespace mir {
 		using Variant = std::variant<VoidType, ArrayType, TupleType, CodeType>;
 		Variant type;
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 	};
 
 	// any function-local location in memory, including user-defined local
@@ -33,7 +33,7 @@ namespace mir {
 			user_given_name { mv(user_given_name) }, type { type }
 		{}
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 		std::string get_unambiguous_name() const;
 		std::string get_declaration() const;
 	};
@@ -42,7 +42,7 @@ namespace mir {
 	// InstructionAssignment
 	// closely resembles hir::Expr
 	struct Rvalue {
-		virtual std::string to_string() const = 0;
+		virtual std::string to_ir_syntax() const = 0;
 	};
 
 	struct Operand : Rvalue {};
@@ -59,7 +59,7 @@ namespace mir {
 			target { target }, indices { mv(indices) }
 		{}
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct Int64Constant : Operand {
@@ -67,7 +67,7 @@ namespace mir {
 
 		Int64Constant(int64_t value) : value { value } {}
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct FunctionDef;
@@ -77,7 +77,7 @@ namespace mir {
 
 		CodeConstant(FunctionDef *value) : value { value } {}
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	enum struct Operator {
@@ -99,33 +99,33 @@ namespace mir {
 		Uptr<Operand> rhs;
 		Operator op;
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct LengthGetter : Rvalue {
 		Uptr<Operand> target;
 		Opt<Uptr<Operand>> dimension;
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct FunctionCall : Rvalue {
 		Uptr<Operand> callee;
 		Vec<Uptr<Operand>> arguments;
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct NewArray : Rvalue {
 		Vec<Uptr<Operand>> dimension_lengths;
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	struct NewTuple : Rvalue {
 		Uptr<Operand> length;
 
-		std::string to_string() const override;
+		std::string to_ir_syntax() const override;
 	};
 
 	// mir::Instruction represents an elementary type-aware option, unlike
@@ -136,7 +136,7 @@ namespace mir {
 		Opt<Place> destination;
 		Uptr<Rvalue> rvalue;
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 	};
 
 	struct BasicBlock {
@@ -161,7 +161,7 @@ namespace mir {
 			terminator { ReturnVoid {} }
 		{}
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 		std::string get_unambiguous_name() const;
 	};
 
@@ -176,13 +176,13 @@ namespace mir {
 			user_given_name { mv(user_given_name) }, return_type { return_type }
 		{}
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 		std::string get_unambiguous_name() const;
 	};
 
 	struct Program {
 		Vec<Uptr<FunctionDef>> function_defs;
 
-		std::string to_string() const;
+		std::string to_ir_syntax() const;
 	};
 }
