@@ -704,4 +704,4 @@ namespace La::hir_to_mir {
 
 		return mir_program;
 	}
-};
+}
