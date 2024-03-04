@@ -62,9 +62,6 @@ namespace mir {
 	std::string LocalVar::get_declaration() const {
 		return this->type.to_ir_syntax() + " " + this->to_ir_syntax();
 	}
-	std::string LocalVar::get_initialization() const {
-		return this->to_ir_syntax() + " <- " + this->type.get_default_value()->to_ir_syntax();
-	}
 
 	std::string Place::to_ir_syntax() const {
 		std::string result = this->target->to_ir_syntax();
@@ -140,16 +137,12 @@ namespace mir {
 		return "new Tuple(" + this->length->to_ir_syntax() + ")";
 	}
 
-	std::string BasicBlock::to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_initialize) const {
+	std::string BasicBlock::to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_declare) const {
 		std::string result = "\t:" + this->get_unambiguous_name() + "\n";
 
-		if (vars_to_initialize.has_value()) {
-			for (LocalVar *local_var : vars_to_initialize.value()) {
+		if (vars_to_declare.has_value()) {
+			for (LocalVar *local_var : vars_to_declare.value()) {
 				result += "\t" + local_var->get_declaration() + "\n";
-				if (local_var->is_user_declared) {
-					// must have an initializer
-					result += "\t" + local_var->get_initialization() + "\n";
-				}
 			}
 		}
 

@@ -116,7 +116,9 @@ namespace La::hir {
 		return "new Tuple(" + this->length->to_string() + ")";
 	}
 
-	void InstructionDeclaration::bind_to_scope(Scope<Nameable> &scope) {}
+	void InstructionDeclaration::bind_to_scope(Scope<Nameable> &scope) {
+		this->variable->bind_to_scope(scope);
+	}
 	std::string InstructionDeclaration::to_string() const {
 		return this->type.to_ir_syntax() + " " + this->variable_name;
 	}
@@ -193,10 +195,10 @@ namespace La::hir {
 		this->vars.emplace_back(mv(var_ptr));
 	}
 	void LaFunction::add_next_instruction(Uptr<Instruction> inst) {
-		inst->bind_to_scope(this->scope);
 		if (InstructionDeclaration *inst_decl = dynamic_cast<InstructionDeclaration *>(inst.get())) {
 			this->add_variable(inst_decl->variable_name, inst_decl->type, false);
 		}
+		inst->bind_to_scope(this->scope);
 		this->instructions.push_back(mv(inst));
 	}
 

@@ -161,7 +161,13 @@ namespace La::hir_to_mir {
 		{}
 
 		void visit(hir::InstructionDeclaration &inst) override {
-			// do nothing; variables were already added
+			this->ensure_active_basic_block();
+			Uptr<mir::Operand> dest_operand = this->evaluate_expr(inst.variable);
+			Uptr<mir::Place> dest_place = utils::downcast_uptr<mir::Operand, mir::Place>(mv(dest_operand));
+			this->add_inst(
+				mv(dest_place),
+				inst.type.get_default_value()
+			);
 		}
 		void visit(hir::InstructionAssignment &inst) override {
 			this->ensure_active_basic_block();

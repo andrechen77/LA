@@ -40,7 +40,6 @@ namespace mir {
 		std::string to_ir_syntax() const;
 		std::string get_unambiguous_name() const;
 		std::string get_declaration() const;
-		std::string get_initialization() const;
 	};
 
 	// a value that can be used as the right-hand side of an
@@ -200,7 +199,7 @@ namespace mir {
 			terminator { ReturnVoid {} }
 		{}
 
-		std::string to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_initialize) const;
+		std::string to_ir_syntax(Opt<Vec<LocalVar *>> vars_to_declare) const;
 		std::string get_unambiguous_name() const;
 	};
 

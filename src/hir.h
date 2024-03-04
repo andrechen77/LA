@@ -171,9 +171,10 @@ namespace La::hir {
 	struct InstructionDeclaration : Instruction {
 		mir::Type type;
 		std::string variable_name;
+		Uptr<Expr> variable;
 
 		InstructionDeclaration(std::string variable_name, mir::Type type) :
-			variable_name { mv(variable_name) }, type { type }
+			variable_name { mv(variable_name) }, type { type }, variable { mkuptr<ItemRef<Nameable>>(this->variable_name) }
 		{}
 
 		void bind_to_scope(Scope<Nameable> &scope) override;
